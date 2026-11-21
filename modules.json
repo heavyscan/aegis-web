@@ -1,0 +1,214 @@
+{
+  "installed": [
+    {
+      "id": "csp-auditor",
+      "name": "CSP Policy Auditor",
+      "description": "Analisa todas as diretivas Content-Security-Policy (e Report-Only) conforme boas práticas OWASP",
+      "category": "headers",
+      "active": true
+    },
+    {
+      "id": "hsts-tls-checker",
+      "name": "HSTS & TLS Hygiene",
+      "description": "Verifica HTTPS, Strict-Transport-Security (max-age, includeSubDomains, preload) e transporte seguro",
+      "category": "tls",
+      "active": true
+    },
+    {
+      "id": "cookie-session-auditor",
+      "name": "Cookie & Session Auditor",
+      "description": "Audita flags Secure, HttpOnly, SameSite e regras dos prefixos __Host-/__Secure- em cookies",
+      "category": "session",
+      "active": true
+    },
+    {
+      "id": "cors-samesite-auditor",
+      "name": "CORS & Cross-Origin Auditor",
+      "description": "Avalia cabeçalhos CORS (ACAO, ACAC, Vary: Origin, Max-Age) contra exposição entre origens",
+      "category": "headers",
+      "active": true
+    },
+    {
+      "id": "cross-origin-isolation",
+      "name": "Cross-Origin Isolation (COOP/COEP/CORP)",
+      "description": "Audita isolamento de contexto no navegador via COOP, COEP, CORP e Origin-Agent-Cluster",
+      "category": "headers",
+      "active": false
+    },
+    {
+      "id": "clickjacking-guard",
+      "name": "Clickjacking Guard Check",
+      "description": "Valida presença de X-Frame-Options e diretiva frame-ancestors na CSP",
+      "category": "headers",
+      "active": true
+    },
+    {
+      "id": "rate-limit-hygiene",
+      "name": "Rate-Limit & Abuse Controls Audit",
+      "description": "Verifica cabeçalhos defensivos RateLimit-*/X-RateLimit-* e Retry-After em APIs públicas",
+      "category": "headers",
+      "active": false
+    },
+    {
+      "id": "header-extractor",
+      "name": "HTTP Header Extractor",
+      "description": "Extrai, classifica e inventaria todos os cabeçalhos HTTP recebidos",
+      "category": "headers",
+      "active": true
+    },
+    {
+      "id": "passive-leak-detector",
+      "name": "Passive Secret & Stack Detector",
+      "description": "Detecta exposição passiva de chaves PEM/API, stack traces e metadados internos no corpo",
+      "category": "privacy",
+      "active": false
+    },
+    {
+      "id": "static-script-reviewer",
+      "name": "Static Resource Reviewer",
+      "description": "Revisão passiva de Subresource Integrity (SRI) e mixed-content em scripts externos",
+      "category": "analysis",
+      "active": false
+    },
+    {
+      "id": "html-link-hygiene",
+      "name": "HTML Links, Tabnabbing & Meta Hygiene",
+      "description": "Audita links target=_blank sem rel=noopener, iframes sem sandbox e metadados HTML",
+      "category": "privacy",
+      "active": false
+    },
+    {
+      "id": "token-entropy",
+      "name": "Token Entropy Analyzer",
+      "description": "Calcula entropia estatística de Shannon para validar aleatoriedade de tokens",
+      "category": "workbench",
+      "active": true
+    },
+    {
+      "id": "decoder-encoder",
+      "name": "Decoder / Encoder & JWT",
+      "description": "Decodifica Base64, URL, HTML, Hex, calcula SHA-256 e inspeciona claims de JWT localmente",
+      "category": "workbench",
+      "active": true
+    },
+    {
+      "id": "response-comparer",
+      "name": "Response & Text Comparer",
+      "description": "Compara linha a linha duas respostas, JSONs ou cabeçalhos HTTP",
+      "category": "workbench",
+      "active": true
+    },
+    {
+      "id": "url-parser",
+      "name": "URL Structure Parser",
+      "description": "Decompõe protocolo, host, porta, caminhos e parâmetros de query",
+      "category": "workbench",
+      "active": true
+    },
+    {
+      "id": "http-history",
+      "name": "Inspection History Ledger",
+      "description": "Mantém histórico estruturado das inspeções passivas executadas na sessão",
+      "category": "workbench",
+      "active": true
+    },
+    {
+      "id": "request-inspector",
+      "name": "Passive Request Inspector",
+      "description": "Executa consulta HTTP passiva (GET/HEAD/OPTIONS) controlada para diagnóstico de configuração",
+      "category": "workbench",
+      "active": true
+    },
+    {
+      "id": "rest-api",
+      "name": "Local REST API",
+      "description": "Expõe endpoints REST locais da console para automação interna e QA",
+      "category": "platform",
+      "active": false
+    },
+    {
+      "id": "runtime-header-review",
+      "name": "Runtime Disclosure Review",
+      "description": "Identifica cabeçalhos que divulgam versões de servidores, frameworks e meta generator",
+      "category": "privacy",
+      "active": false
+    },
+    {
+      "id": "cdn-cache-review",
+      "name": "CDN & Cache-Control Review",
+      "description": "Verifica diretivas Cache-Control, Pragma, ETag e cabeçalhos de proxy reverso/CDN",
+      "category": "headers",
+      "active": false
+    },
+    {
+      "id": "ingress-hygiene",
+      "name": "Ingress & Gateway Hygiene",
+      "description": "Audita exposição de cabeçalhos de roteamento, proxy e balanceadores",
+      "category": "privacy",
+      "active": false
+    },
+    {
+      "id": "json-schema-check",
+      "name": "JSON Response Hygiene",
+      "description": "Valida Content-Type JSON, charset UTF-8, nosniff e formatação segura de respostas API",
+      "category": "analysis",
+      "active": true
+    },
+    {
+      "id": "openapi-contract-check",
+      "name": "OpenAPI & API Contract Validator",
+      "description": "Audita contratos OpenAPI 3.x / Swagger 2.0 (versão, servidores HTTPS, securitySchemes e rotas)",
+      "category": "analysis",
+      "active": false
+    },
+    {
+      "id": "cert-inspector",
+      "name": "TLS Certificate Summary",
+      "description": "Verifica validade, CN, emissor e janela de expiração do certificado TLS em inspeções HTTPS",
+      "category": "tls",
+      "active": true
+    },
+    {
+      "id": "tls-cipher-hardening",
+      "name": "TLS Cipher & Protocol Hardening",
+      "description": "Audita força da suíte criptográfica AEAD/TLS 1.3, SANs, tempo de vida do cert e prontidão HSTS preload",
+      "category": "tls",
+      "active": false
+    },
+    {
+      "id": "form-hygiene",
+      "name": "Form & Referrer Hygiene",
+      "description": "Verifica Referrer-Policy, Permissions-Policy e segurança de atributos action em formulários",
+      "category": "headers",
+      "active": false
+    },
+    {
+      "id": "dns-email-auth-check",
+      "name": "DNS & Email Posture (CAA/SPF/DMARC)",
+      "description": "Consulta registros DNS públicos passivos (CAA, SPF e DMARC) para postura defensiva do domínio",
+      "category": "compliance",
+      "active": false
+    },
+    {
+      "id": "host-inventory",
+      "name": "Session Host Inventory",
+      "description": "Consolida lista de hosts, TLS e notas OWASP inspecionados na sessão",
+      "category": "platform",
+      "active": false
+    },
+    {
+      "id": "async-webhook-monitor",
+      "name": "Async Callback Diagnostics",
+      "description": "Valida latência, cabeçalhos Allow e políticas defensivas de endpoints de callback/webhook",
+      "category": "analysis",
+      "active": false
+    },
+    {
+      "id": "owasp-compliance",
+      "name": "OWASP Baseline Report",
+      "description": "Calcula conformidade OWASP (0–100 / A–F), snippets de hardening e relatórios PDF/HTML/MD/JSON",
+      "category": "compliance",
+      "active": true
+    }
+  ]
+}

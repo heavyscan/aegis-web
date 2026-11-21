@@ -1,0 +1,13 @@
+{
+  "name": "aegis-web",
+  "version": "1.0.0",
+  "description": "Aegis Web Console — Standalone Passive HTTP Security & Web QA Workbench with Local AI",
+  "main": "webserver.js",
+  "scripts": {
+    "start": "node webserver.js"
+  },
+  "dependencies": {
+    "body-parser": "^2.4.0",
+    "express": "^5.3.0"
+  }
+}

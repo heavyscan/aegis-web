@@ -1,0 +1,1623 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Aegis Web Console — Diagnóstico HTTP Modular &amp; QA Defensivo</title>
+  <style>
+    :root {
+      --primary: #0f766e;
+      --primary-dark: #115e59;
+      --accent: #38bdf8;
+      --bg-light: #f1f5f9;
+      --bg-white: #ffffff;
+      --text-dark: #0f172a;
+      --text-secondary: #475569;
+      --border: #e2e8f0;
+      --success: #16a34a;
+      --warning: #d97706;
+      --error: #dc2626;
+      --info: #0284c7;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      margin: 0;
+      padding: 0;
+      background: var(--bg-light);
+      color: var(--text-dark);
+    }
+
+    .navbar {
+      background: #0b132b;
+      color: white;
+      padding: 0.9rem 1.8rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      z-index: 100;
+    }
+
+    .navbar .logo {
+      font-size: 1.18rem;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 0.65rem;
+    }
+
+    .navbar .logo-icon {
+      width: 34px;
+      height: 34px;
+      background: var(--primary);
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      color: white;
+      font-size: 0.9rem;
+    }
+
+    .nav-links {
+      display: flex;
+      gap: 15px;
+      flex-wrap: wrap;
+    }
+
+    .navbar a {
+      color: #cbd5e1;
+      text-decoration: none;
+      font-size: 0.88rem;
+      font-weight: 500;
+      transition: color 0.2s;
+    }
+
+    .navbar a:hover { color: var(--accent); }
+
+    .main {
+      margin-top: 74px;
+      padding: 1.5rem;
+    }
+
+    .container {
+      max-width: 1180px;
+      margin: 0 auto;
+    }
+
+    .card {
+      background: var(--bg-white);
+      border-radius: 8px;
+      padding: 1.35rem;
+      margin-bottom: 1.3rem;
+      box-shadow: 0 1px 3px rgba(15, 23, 42, 0.08);
+      border-left: 4px solid var(--primary);
+    }
+
+    .card h2 {
+      margin-top: 0;
+      margin-bottom: 0.65rem;
+      color: #0b132b;
+      font-size: 1.16rem;
+    }
+
+    .status-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(185px, 1fr));
+      gap: 12px;
+      margin-top: 0.9rem;
+    }
+
+    .stat-box {
+      background: #f8fafc;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 0.8rem;
+    }
+
+    .stat-label {
+      font-size: 0.73rem;
+      color: var(--text-secondary);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    .stat-value {
+      font-size: 1.02rem;
+      font-weight: 700;
+      margin-top: 4px;
+    }
+
+    .score-bar-track {
+      width: 100%;
+      height: 10px;
+      background: #e2e8f0;
+      border-radius: 999px;
+      overflow: hidden;
+      margin: 0.5rem 0 0.7rem;
+    }
+
+    .score-bar-fill {
+      height: 100%;
+      border-radius: 999px;
+      transition: width 0.3s ease;
+    }
+
+    .tabs {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-bottom: 1rem;
+    }
+
+    .tab-btn {
+      padding: 0.48rem 0.9rem;
+      border: 1px solid var(--border);
+      background: #f8fafc;
+      color: var(--text-dark);
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 0.84rem;
+      font-weight: 600;
+    }
+
+    .tab-btn.active {
+      background: var(--primary);
+      color: white;
+      border-color: var(--primary);
+    }
+
+    .tool-panel { display: none; }
+    .tool-panel.active { display: block; }
+
+    .two-col {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 12px;
+    }
+
+    .three-col {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+      gap: 10px;
+    }
+
+    .input-group { margin-bottom: 0.9rem; }
+
+    .input-group label {
+      display: block;
+      margin-bottom: 0.32rem;
+      font-weight: 600;
+      font-size: 0.85rem;
+    }
+
+    .input-group input[type="text"],
+    .input-group select,
+    .input-group textarea {
+      width: 100%;
+      padding: 0.6rem 0.72rem;
+      border: 1px solid #cbd5e1;
+      border-radius: 5px;
+      font-size: 0.87rem;
+      font-family: inherit;
+    }
+
+    .check-row {
+      display: flex;
+      gap: 16px;
+      flex-wrap: wrap;
+      margin: 0.5rem 0 0.9rem;
+    }
+
+    .check-item {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.85rem;
+      font-weight: 500;
+      cursor: pointer;
+    }
+
+    .btn-row {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .btn {
+      background: var(--primary);
+      color: white;
+      padding: 0.58rem 1.1rem;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      font-size: 0.86rem;
+      font-weight: 600;
+      transition: background 0.2s;
+    }
+
+    .btn:hover { background: var(--primary-dark); }
+    .btn:disabled { opacity: 0.6; cursor: not-allowed; }
+    .btn-secondary { background: #334155; }
+    .btn-secondary:hover { background: #1e293b; }
+    .btn-danger { background: #b91c1c; }
+    .btn-small { padding: 0.34rem 0.7rem; font-size: 0.77rem; }
+
+    .badge {
+      display: inline-block;
+      padding: 0.18rem 0.55rem;
+      border-radius: 999px;
+      font-size: 0.73rem;
+      font-weight: 600;
+    }
+
+    .badge-active { background: #dcfce7; color: #166534; }
+    .badge-inactive { background: #fef3c7; color: #92400e; }
+    .badge-error { background: #fee2e2; color: #991b1b; }
+    .badge-info { background: #e0f2fe; color: #075985; }
+    .badge-medium { background: #ffedd5; color: #9a3412; }
+
+    .mod-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(275px, 1fr));
+      gap: 10px;
+      margin-top: 0.9rem;
+    }
+
+    .mod-card {
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 0.82rem;
+      background: #ffffff;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      gap: 7px;
+    }
+
+    .mod-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .mod-desc {
+      margin: 0;
+      font-size: 0.81rem;
+      color: var(--text-secondary);
+    }
+
+    .result-box {
+      margin-top: 0.85rem;
+      padding: 0.9rem;
+      background: #f8fafc;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      font-size: 0.85rem;
+    }
+
+    .finding-list {
+      margin: 0.45rem 0 0;
+      padding-left: 1.2rem;
+    }
+
+    .finding-list li {
+      margin-bottom: 0.45rem;
+      line-height: 1.42;
+    }
+
+    table.data-tbl {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 0.6rem;
+      font-size: 0.82rem;
+    }
+
+    table.data-tbl th,
+    table.data-tbl td {
+      border: 1px solid var(--border);
+      padding: 0.45rem 0.6rem;
+      text-align: left;
+    }
+
+    table.data-tbl th {
+      background: #0b132b;
+      color: white;
+    }
+
+    pre.code-out {
+      white-space: pre-wrap;
+      word-break: break-word;
+      background: #0b132b;
+      color: #e2e8f0;
+      padding: 0.8rem;
+      border-radius: 6px;
+      font-size: 0.8rem;
+      overflow-x: auto;
+      margin: 0.55rem 0 0;
+      max-height: 300px;
+    }
+
+    details.fold-box {
+      margin-top: 0.75rem;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 0.55rem 0.75rem;
+      background: #fff;
+    }
+
+    details.fold-box summary {
+      cursor: pointer;
+      font-weight: 600;
+      font-size: 0.84rem;
+      color: #0b132b;
+    }
+
+    .diff-line {
+      font-family: monospace;
+      font-size: 0.8rem;
+      padding: 2px 6px;
+      white-space: pre-wrap;
+    }
+    .diff-add { background: #dcfce7; color: #166534; }
+    .diff-del { background: #fee2e2; color: #991b1b; }
+    .diff-same { color: #334155; }
+
+    @media (max-width: 640px) {
+      .navbar { flex-direction: column; align-items: flex-start; gap: 0.5rem; }
+      .main { margin-top: 108px; padding: 1rem; }
+    }
+  </style>
+</head>
+<body>
+  <nav class="navbar">
+    <div class="logo">
+      <div class="logo-icon">AW</div>
+      <span>Aegis Web Console</span>
+    </div>
+    <div class="nav-links">
+      <a href="#home">Início</a>
+      <a href="#inspector">Inspetor HTTP</a>
+      <a href="#inventory">Inventário</a>
+      <a href="#workbench">Utilitários QA</a>
+      <a href="#modules" id="nav-modules-link">Módulos (30)</a>
+      <a href="#ai">IA Local</a>
+      <a href="#reports">Relatórios</a>
+    </div>
+  </nav>
+
+  <main class="main">
+    <div class="container">
+      <!-- Dashboard -->
+      <section id="home" class="card">
+        <h2>Aegis Web Console — Plataforma Modular de Diagnóstico HTTP, Hardening &amp; QA Defensivo</h2>
+        <p>Motor plugável com 30 módulos defensivos sob demanda (OWASP, CSP, CORS/COOP/COEP, TLS/Cifras, DNS/CAA/SPF/DMARC, Rate-Limit, OpenAPI e HTML Hygiene). Apenas os módulos ativados são executados em cada inspeção passiva.</p>
+        <div class="status-grid">
+          <div class="stat-box">
+            <div class="stat-label">Modo Operacional</div>
+            <div class="stat-value" id="current-mode">manual</div>
+          </div>
+          <div class="stat-box">
+            <div class="stat-label">IA Local</div>
+            <div class="stat-value" id="home-ai-status">Verificando...</div>
+          </div>
+          <div class="stat-box">
+            <div class="stat-label">Módulos Ativos</div>
+            <div class="stat-value" id="home-mod-count">0 / 0</div>
+          </div>
+          <div class="stat-box">
+            <div class="stat-label">Inspeções / Hosts</div>
+            <div class="stat-value" id="home-insp-count">0 / 0</div>
+          </div>
+          <div class="stat-box">
+            <div class="stat-label">Última Nota OWASP</div>
+            <div class="stat-value" id="home-last-grade">—</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Passive HTTP Request Inspector -->
+      <section id="inspector" class="card">
+        <h2>Inspetor HTTP Passivo, TLS, DNS &amp; Snippets de Hardening</h2>
+        <div class="three-col">
+          <div class="input-group">
+            <label for="target-url">URL Alvo (HTTP/HTTPS):</label>
+            <input type="text" id="target-url" placeholder="https://example.com">
+          </div>
+          <div class="input-group">
+            <label for="req-method">Método Passivo:</label>
+            <select id="req-method">
+              <option value="GET">GET (Completo)</option>
+              <option value="HEAD">HEAD (Cabeçalhos)</option>
+              <option value="OPTIONS">OPTIONS (Capacidades / CORS)</option>
+            </select>
+          </div>
+          <div class="input-group">
+            <label for="scan-mode">Modo de Execução:</label>
+            <select id="scan-mode">
+              <option value="manual">Manual (executa seus módulos ativos)</option>
+              <option value="ai-automation">IA Assistiva (seleciona módulos + resumo Ollama)</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="two-col">
+          <div class="input-group">
+            <label for="hdr-origin">Cabeçalho Origin opcional (validar CORS passivo):</label>
+            <input type="text" id="hdr-origin" placeholder="Ex.: https://app.example.com">
+          </div>
+          <div class="input-group">
+            <label for="hdr-accept">Cabeçalho Accept opcional:</label>
+            <input type="text" id="hdr-accept" placeholder="Ex.: application/json">
+          </div>
+        </div>
+
+        <div class="btn-row">
+          <button class="btn" id="btn-run-inspect" type="button">Executar Inspeção Passiva</button>
+          <button class="btn btn-secondary" id="btn-save-mode" type="button">Salvar Modo Padrão</button>
+          <button class="btn btn-secondary" id="btn-refresh-history" type="button">Atualizar Histórico</button>
+          <button class="btn btn-danger" id="btn-clear-history" type="button">Limpar Histórico</button>
+        </div>
+
+        <div id="inspect-results" class="result-box">Configure a URL alvo e clique em "Executar Inspeção Passiva". Apenas os módulos ativos em #modules serão executados.</div>
+        <div id="inspect-history" class="result-box" style="display: none;"></div>
+      </section>
+
+      <!-- Session Host Inventory -->
+      <section id="inventory" class="card">
+        <h2>Inventário de Hosts da Sessão</h2>
+        <div id="inventory-box" class="result-box">Nenhum host inspecionado ainda nesta sessão.</div>
+      </section>
+
+      <!-- Web QA Workbench -->
+      <section id="workbench" class="card">
+        <h2>Bancada de Utilitários Web QA &amp; Hardening</h2>
+        <div class="tabs">
+          <button class="tab-btn active" type="button" data-panel="panel-decoder">Decoder / Encoder &amp; JWT</button>
+          <button class="tab-btn" type="button" data-panel="panel-comparer">Response Comparer</button>
+          <button class="tab-btn" type="button" data-panel="panel-entropy">Entropia de Tokens</button>
+          <button class="tab-btn" type="button" data-panel="panel-url">URL Parser</button>
+          <button class="tab-btn" type="button" data-panel="panel-schema">OpenAPI &amp; JSON Schema</button>
+          <button class="tab-btn" type="button" data-panel="panel-policy">Auditor &amp; Construtor CSP/Headers</button>
+        </div>
+
+        <div id="panel-decoder" class="tool-panel active">
+          <div class="input-group">
+            <label for="dec-input">Texto, Base64, URL, HTML, Hex ou JWT:</label>
+            <textarea id="dec-input" rows="3" placeholder="Cole o valor para codificar, decodificar, calcular SHA-256 ou inspecionar JWT..."></textarea>
+          </div>
+          <div class="btn-row">
+            <button class="btn btn-small" type="button" data-dec="b64e">Base64 Encode</button>
+            <button class="btn btn-small" type="button" data-dec="b64d">Base64 Decode</button>
+            <button class="btn btn-small" type="button" data-dec="urle">URL Encode</button>
+            <button class="btn btn-small" type="button" data-dec="urld">URL Decode</button>
+            <button class="btn btn-small" type="button" data-dec="htmle">HTML Encode</button>
+            <button class="btn btn-small" type="button" data-dec="htmld">HTML Decode</button>
+            <button class="btn btn-small" type="button" data-dec="hexe">Hex Encode</button>
+            <button class="btn btn-small" type="button" data-dec="hexd">Hex Decode</button>
+            <button class="btn btn-small btn-secondary" type="button" data-dec="jwt">Inspecionar JWT</button>
+            <button class="btn btn-small btn-secondary" type="button" data-dec="sha256">SHA-256</button>
+          </div>
+          <pre id="dec-output" class="code-out">Saída aparecerá aqui.</pre>
+        </div>
+
+        <div id="panel-comparer" class="tool-panel">
+          <div class="two-col">
+            <div class="input-group">
+              <label for="cmp-a">Texto / Cabeçalhos A:</label>
+              <textarea id="cmp-a" rows="5" placeholder="Cole a resposta A ou carregue pelo histórico..."></textarea>
+            </div>
+            <div class="input-group">
+              <label for="cmp-b">Texto / Cabeçalhos B:</label>
+              <textarea id="cmp-b" rows="5" placeholder="Cole a resposta B ou carregue pelo histórico..."></textarea>
+            </div>
+          </div>
+          <button class="btn btn-small" id="btn-compare" type="button">Comparar Diferenças</button>
+          <div id="cmp-output" class="result-box">Resultado da comparação aparecerá aqui.</div>
+        </div>
+
+        <div id="panel-entropy" class="tool-panel">
+          <div class="input-group">
+            <label for="ent-input">Amostra de Token de Sessão / Chave:</label>
+            <input type="text" id="ent-input" placeholder="Cole um token de teste gerado pela sua aplicação...">
+          </div>
+          <button class="btn btn-small" id="btn-entropy" type="button">Calcular Entropia de Shannon</button>
+          <div id="ent-output" class="result-box">Informe um token para calcular bits de entropia e força estatística.</div>
+        </div>
+
+        <div id="panel-url" class="tool-panel">
+          <div class="input-group">
+            <label for="url-parse-input">URL para decomposição:</label>
+            <input type="text" id="url-parse-input" placeholder="https://api.example.com:8443/v1/items?page=2&sort=asc#top">
+          </div>
+          <button class="btn btn-small" id="btn-parse-url" type="button">Analisar URL</button>
+          <pre id="url-parse-output" class="code-out">Componentes da URL aparecerão aqui.</pre>
+        </div>
+
+        <div id="panel-schema" class="tool-panel">
+          <div class="input-group">
+            <label for="schema-mode">Modo de Validação QA:</label>
+            <select id="schema-mode">
+              <option value="openapi">Auditar Especificação OpenAPI 3.x / Swagger 2.0 (JSON)</option>
+              <option value="json-schema">Validar Payload JSON contra JSON Schema</option>
+            </select>
+          </div>
+          <div class="two-col">
+            <div class="input-group">
+              <label for="schema-payload" id="schema-payload-label">Documento OpenAPI JSON (ou Payload JSON):</label>
+              <textarea id="schema-payload" rows="7" placeholder='{"openapi":"3.0.3","info":{"title":"Minha API","version":"1.0.0"},"servers":[{"url":"https://api.example.com"}],"paths":{"/users":{"get":{"responses":{"200":{"description":"OK"}}}}}}'></textarea>
+            </div>
+            <div class="input-group" id="schema-def-group" style="display: none;">
+              <label for="schema-def">JSON Schema de Validação:</label>
+              <textarea id="schema-def" rows="7" placeholder='{"type":"object","required":["id","email"],"properties":{"id":{"type":"integer","minimum":1},"email":{"type":"string","format":"email"}},"additionalProperties":false}'></textarea>
+            </div>
+          </div>
+          <div class="btn-row">
+            <button class="btn btn-small" id="btn-validate-schema" type="button">Validar / Auditar</button>
+            <button class="btn btn-secondary btn-small" id="btn-load-sample-schema" type="button">Carregar Exemplo</button>
+          </div>
+          <div id="schema-output" class="result-box">Cole uma especificação OpenAPI JSON ou um par Payload + JSON Schema para validação defensiva.</div>
+        </div>
+
+        <div id="panel-policy" class="tool-panel">
+          <div class="two-col">
+            <div>
+              <div class="input-group">
+                <label for="csp-audit-input">Auditar CSP Existente (análise offline de diretivas):</label>
+                <textarea id="csp-audit-input" rows="3" placeholder="Ex.: default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.example.com"></textarea>
+              </div>
+              <button class="btn btn-small" id="btn-audit-csp" type="button">Auditar Diretivas CSP</button>
+              <div id="csp-audit-output" class="result-box">Cole um cabeçalho Content-Security-Policy para inspecionar pontos fracos.</div>
+            </div>
+            <div>
+              <label style="font-weight:600; font-size:0.85rem; display:block; margin-bottom:0.35rem;">Construtor Rápido de Cabeçalhos Defensivos:</label>
+              <div class="check-row">
+                <label class="check-item"><input type="checkbox" id="pol-csp" checked> CSP Restritiva</label>
+                <label class="check-item"><input type="checkbox" id="pol-hsts" checked> HSTS Preload</label>
+                <label class="check-item"><input type="checkbox" id="pol-coop" checked> COOP/COEP/CORP</label>
+                <label class="check-item"><input type="checkbox" id="pol-perm" checked> Permissions-Policy</label>
+              </div>
+              <div class="input-group">
+                <label for="pol-format">Formato de Saída:</label>
+                <select id="pol-format">
+                  <option value="nginx">Nginx</option>
+                  <option value="apache">Apache (mod_headers)</option>
+                  <option value="express">Express.js</option>
+                  <option value="raw">Cabeçalhos HTTP Brutos</option>
+                </select>
+              </div>
+              <div class="btn-row">
+                <button class="btn btn-small" id="btn-build-policy" type="button">Gerar Política Hardened</button>
+                <button class="btn btn-secondary btn-small" id="btn-copy-policy" type="button">Copiar Snippet</button>
+              </div>
+              <pre id="pol-output" class="code-out">Clique em "Gerar Política Hardened" para criar o bloco de configuração.</pre>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Pluggable Defensive Modules Manager -->
+      <section id="modules" class="card">
+        <h2 id="modules-heading">Gerenciador de Módulos &amp; Extensões Defensivas (30 Módulos Executáveis)</h2>
+        <p>Cada módulo abaixo controla um verificador real no motor de inspeção passiva. Ative apenas o necessário ou aplique um preset de auditoria.</p>
+
+        <div class="three-col">
+          <div class="input-group">
+            <label for="mod-preset">Aplicar Preset Rápido:</label>
+            <select id="mod-preset">
+              <option value="">-- Selecionar preset --</option>
+              <option value="essential">Essenciais OWASP &amp; Bancada (15 módulos)</option>
+              <option value="api-qa">API &amp; OpenAPI QA (15 módulos)</option>
+              <option value="compliance-full">Auditoria Completa OWASP + TLS + DNS (24 módulos)</option>
+              <option value="all-on">Ativar Todos (30 módulos)</option>
+              <option value="all-off">Desativar Todos</option>
+            </select>
+          </div>
+          <div class="input-group">
+            <label for="mod-cat-filter">Categoria:</label>
+            <select id="mod-cat-filter">
+              <option value="">Todas as categorias</option>
+              <option value="headers">Headers</option>
+              <option value="tls">TLS</option>
+              <option value="session">Session</option>
+              <option value="privacy">Privacy</option>
+              <option value="analysis">Analysis</option>
+              <option value="compliance">Compliance</option>
+              <option value="workbench">Workbench</option>
+              <option value="platform">Platform</option>
+            </select>
+          </div>
+          <div class="input-group">
+            <label for="mod-filter">Buscar Módulo:</label>
+            <input type="text" id="mod-filter" placeholder="Nome ou descrição...">
+          </div>
+        </div>
+
+        <div class="input-group">
+          <label for="mod-ai-context">Seleção Inteligente via IA (descreva sua aplicação para ativar o subconjunto ideal):</label>
+          <input type="text" id="mod-ai-context" placeholder="Ex.: API REST OpenAPI JSON autenticada por JWT atrás de CDN HTTPS com DMARC">
+        </div>
+        <div class="btn-row">
+          <button class="btn btn-small" id="btn-ai-select-mods" type="button">Recomendar e Aplicar Módulos via IA</button>
+        </div>
+        <div id="mod-ai-result" class="result-box" style="display: none;"></div>
+
+        <div id="modules-list" class="mod-grid">Carregando módulos...</div>
+      </section>
+
+      <!-- Local AI Control -->
+      <section id="ai" class="card">
+        <h2>Assistente Defensivo de IA Local (Ollama)</h2>
+        <div class="two-col">
+          <div class="input-group">
+            <label for="ai-type">Provedor:</label>
+            <select id="ai-type">
+              <option value="ollama">Ollama Local</option>
+              <option value="none">Desativada</option>
+            </select>
+          </div>
+          <div class="input-group">
+            <label for="ai-model">Modelo:</label>
+            <input type="text" id="ai-model" value="deepseek-v4-heretic:9b">
+          </div>
+        </div>
+
+        <div class="input-group" id="ai-endpoint-group">
+          <label for="ai-endpoint">Endpoint Ollama:</label>
+          <input type="text" id="ai-endpoint" value="http://127.0.0.1:11434">
+        </div>
+
+        <div class="input-group">
+          <label for="ai-prompt">Consulta Defensiva (OWASP, OpenAPI, hardening de cabeçalhos/cookies/TLS):</label>
+          <textarea id="ai-prompt" rows="3" placeholder="Ex.: Analise boas práticas para configurar CSP com nonces, COOP/COEP e HSTS preload."></textarea>
+        </div>
+
+        <div class="btn-row">
+          <button class="btn" id="btn-save-ai" type="button">Salvar Configuração IA</button>
+          <button class="btn btn-secondary" id="btn-test-ai" type="button">Enviar Consulta / Testar IA</button>
+        </div>
+
+        <div id="ai-status" class="result-box" style="display: none;"></div>
+      </section>
+
+      <!-- Customizable Reports -->
+      <section id="reports" class="card">
+        <h2>Relatórios Personalizáveis da Sessão</h2>
+        <div class="three-col">
+          <div class="input-group">
+            <label for="report-title">Título do Relatório:</label>
+            <input type="text" id="report-title" value="Relatório de Auditoria Passiva OWASP">
+          </div>
+          <div class="input-group">
+            <label for="report-org">Organização / Projeto:</label>
+            <input type="text" id="report-org" value="Equipe de Engenharia & Segurança">
+          </div>
+          <div class="input-group">
+            <label for="report-classification">Classificação:</label>
+            <select id="report-classification">
+              <option value="Interno">Interno</option>
+              <option value="Confidencial">Confidencial</option>
+              <option value="Restrito">Restrito</option>
+              <option value="Público">Público</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="two-col">
+          <div class="input-group">
+            <label for="report-type">Formato de Exportação:</label>
+            <select id="report-type">
+              <option value="pdf">PDF 1.4 (multipágina com OWASP, TLS, DNS e hardening)</option>
+              <option value="html">HTML Estilizado (pronto para impressão)</option>
+              <option value="md">Markdown (.md para documentação/PRs)</option>
+              <option value="json">JSON Completo (automação CI/CD)</option>
+            </select>
+          </div>
+          <div class="input-group">
+            <label for="report-min-sev">Severidade Mínima nos Achados:</label>
+            <select id="report-min-sev">
+              <option value="info">Todas (Info, Low, Medium, High)</option>
+              <option value="low">Low ou superior</option>
+              <option value="medium">Medium ou superior</option>
+              <option value="high">Apenas High</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="check-row">
+          <label class="check-item"><input type="checkbox" id="rep-inc-modules" checked> Incluir lista de módulos ativos</label>
+          <label class="check-item"><input type="checkbox" id="rep-inc-snippets" checked> Incluir snippets de hardening (Nginx/Express)</label>
+          <label class="check-item"><input type="checkbox" id="rep-inc-headers"> Incluir cabeçalhos HTTP brutos</label>
+        </div>
+
+        <button class="btn" id="btn-gen-report" type="button">Baixar Relatório Personalizado</button>
+        <div id="report-status" class="result-box">Personalize as opções acima e clique em "Baixar Relatório Personalizado".</div>
+      </section>
+    </div>
+  </main>
+
+  <script>
+    'use strict';
+
+    let allModules = [];
+    let sessionHistory = [];
+
+    function clearEl(el) {
+      while (el.firstChild) el.removeChild(el.firstChild);
+    }
+
+    function createEl(tag, attrs, text) {
+      const el = document.createElement(tag);
+      if (attrs) {
+        for (const [k, v] of Object.entries(attrs)) {
+          if (k === 'className') el.className = v;
+          else el.setAttribute(k, v);
+        }
+      }
+      if (text !== undefined && text !== null) el.textContent = String(text);
+      return el;
+    }
+
+    function sevBadgeClass(sev) {
+      const s = String(sev || 'info').toLowerCase();
+      if (s === 'high') return 'badge badge-error';
+      if (s === 'medium') return 'badge badge-medium';
+      if (s === 'low') return 'badge badge-inactive';
+      return 'badge badge-info';
+    }
+
+    async function copyTextSafe(text, btn) {
+      try {
+        await navigator.clipboard.writeText(text);
+        if (btn) {
+          const orig = btn.textContent;
+          btn.textContent = 'Copiado!';
+          setTimeout(() => { btn.textContent = orig; }, 1400);
+        }
+      } catch {
+        // fallback silencioso em ambientes HTTP não-seguros
+      }
+    }
+
+    function toggleEndpointVisibility() {
+      const type = document.getElementById('ai-type').value;
+      document.getElementById('ai-endpoint-group').style.display = type === 'ollama' ? 'block' : 'none';
+    }
+
+    async function refreshStatus() {
+      try {
+        const res = await fetch('/api/status');
+        const d = await res.json();
+        document.getElementById('current-mode').textContent = d.mode || 'manual';
+        document.getElementById('scan-mode').value = d.mode || 'manual';
+        document.getElementById('home-ai-status').textContent = d.ai_active
+          ? `Ativa (${d.ai_config.ai_model})`
+          : 'Desativada';
+        document.getElementById('home-mod-count').textContent = `${d.modules_active} / ${d.modules_total}`;
+        document.getElementById('home-insp-count').textContent = `${d.inspections_count || 0} / ${d.hosts_count || 0}`;
+        document.getElementById('home-last-grade').textContent = d.last_grade
+          ? `${d.last_grade} (${d.last_score}/100)`
+          : '—';
+        document.getElementById('nav-modules-link').textContent = `Módulos (${d.modules_total})`;
+        document.getElementById('modules-heading').textContent = `Gerenciador de Módulos & Extensões Defensivas (${d.modules_total} Módulos Executáveis)`;
+
+        if (d.ai_config) {
+          document.getElementById('ai-type').value = d.ai_config.ai_type;
+          document.getElementById('ai-endpoint').value = d.ai_config.ai_endpoint;
+          document.getElementById('ai-model').value = d.ai_config.ai_model;
+          toggleEndpointVisibility();
+        }
+      } catch {
+        document.getElementById('home-ai-status').textContent = 'Erro de status';
+      }
+    }
+
+    async function loadModules() {
+      const container = document.getElementById('modules-list');
+      try {
+        const res = await fetch('/api/modules');
+        const data = await res.json();
+        allModules = data.installed || [];
+        renderModules();
+      } catch (err) {
+        clearEl(container);
+        container.appendChild(createEl('span', { className: 'badge badge-error' }, `Erro ao carregar módulos: ${err.message}`));
+      }
+    }
+
+    function renderModules() {
+      const container = document.getElementById('modules-list');
+      const filter = document.getElementById('mod-filter').value.trim().toLowerCase();
+      const cat = document.getElementById('mod-cat-filter').value;
+      clearEl(container);
+
+      const list = allModules.filter(mod => {
+        if (cat && mod.category !== cat) return false;
+        if (!filter) return true;
+        return mod.name.toLowerCase().includes(filter) ||
+          mod.id.toLowerCase().includes(filter) ||
+          mod.description.toLowerCase().includes(filter);
+      });
+
+      if (list.length === 0) {
+        container.appendChild(createEl('p', null, 'Nenhum módulo encontrado para este filtro.'));
+        return;
+      }
+
+      for (const mod of list) {
+        const card = createEl('div', { className: 'mod-card' });
+        const header = createEl('div', { className: 'mod-header' });
+        header.appendChild(createEl('strong', null, mod.name));
+        header.appendChild(createEl(
+          'span',
+          { className: mod.active ? 'badge badge-active' : 'badge badge-inactive' },
+          mod.active ? 'Ativo' : 'Inativo'
+        ));
+        card.appendChild(header);
+        card.appendChild(createEl('p', { className: 'mod-desc' }, mod.description));
+
+        const footer = createEl('div', { className: 'mod-header' });
+        footer.appendChild(createEl('span', { className: 'badge badge-info' }, `${mod.category} · ${mod.id}`));
+        const btn = createEl(
+          'button',
+          { className: mod.active ? 'btn btn-secondary btn-small' : 'btn btn-small', type: 'button' },
+          mod.active ? 'Desativar' : 'Ativar'
+        );
+        btn.addEventListener('click', async () => {
+          btn.disabled = true;
+          try {
+            const resp = await fetch(`/api/modules/${encodeURIComponent(mod.id)}`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ mode: 'toggle' })
+            });
+            if (resp.ok) {
+              await loadModules();
+              await refreshStatus();
+            }
+          } finally {
+            btn.disabled = false;
+          }
+        });
+        footer.appendChild(btn);
+        card.appendChild(footer);
+        container.appendChild(card);
+      }
+    }
+
+    function renderInspectionDetail(data) {
+      const box = document.getElementById('inspect-results');
+      clearEl(box);
+
+      const topRow = createEl('div', { className: 'mod-header' });
+      topRow.appendChild(createEl('strong', null, `[${data.method} ${data.status_code}] ${data.target} (${data.duration_ms}ms)`));
+      const gradeCls = data.owasp_score >= 80 ? 'badge badge-active' : (data.owasp_score >= 60 ? 'badge badge-inactive' : 'badge badge-error');
+      topRow.appendChild(createEl('span', { className: gradeCls }, `Nota OWASP: ${data.owasp_grade} (${data.owasp_score}/100)`));
+      box.appendChild(topRow);
+
+      const track = createEl('div', { className: 'score-bar-track' });
+      const fill = createEl('div', { className: 'score-bar-fill' });
+      fill.style.width = `${Math.max(4, Math.min(100, Number(data.owasp_score || 0)))}%`;
+      fill.style.background = data.owasp_score >= 80 ? '#16a34a' : (data.owasp_score >= 60 ? '#d97706' : '#dc2626');
+      track.appendChild(fill);
+      box.appendChild(track);
+
+      box.appendChild(createEl('p', null, `Módulos executados: ${data.executed_modules_count} | Ignorados (inativos): ${data.skipped_modules_count} | Observações: ${data.findings_count}`));
+
+      if (Array.isArray(data.activated_modules) && data.activated_modules.length > 0) {
+        box.appendChild(createEl('p', null, `Módulos selecionados pela IA (${data.activated_modules.length}): ${data.activated_modules.join(', ')}`));
+      }
+
+      if (data.tls_info) {
+        box.appendChild(createEl('p', null, `TLS: ${data.tls_info.protocol || 'n/a'} (${data.tls_info.cipher || 'n/a'}) · CN: ${data.tls_info.subject || 'n/a'} · Emissor: ${data.tls_info.issuer || 'n/a'} · SANs: ${data.tls_info.sanCount ?? 0} · Expira em: ${data.tls_info.daysRemaining ?? '?'} dias`));
+      }
+
+      if (data.dns_posture && !data.dns_posture.skipped) {
+        box.appendChild(createEl('p', null, `Postura DNS (${data.dns_posture.domain}): CAA=${data.dns_posture.caa.length ? 'OK' : 'ausente'} · SPF=${data.dns_posture.spf ? 'OK' : 'ausente'} · DMARC=${data.dns_posture.dmarc ? 'OK' : 'ausente'}`));
+      }
+
+      if (Array.isArray(data.module_results) && data.module_results.length > 0) {
+        box.appendChild(createEl('h4', null, 'Resultado por Módulo Ativo:'));
+        const tbl = createEl('table', { className: 'data-tbl' });
+        const thead = createEl('thead');
+        const hr = createEl('tr');
+        ['Módulo', 'Status', 'Resumo', 'Achados'].forEach(t => hr.appendChild(createEl('th', null, t)));
+        thead.appendChild(hr);
+        tbl.appendChild(thead);
+
+        const tbody = createEl('tbody');
+        for (const m of data.module_results) {
+          const tr = createEl('tr');
+          tr.appendChild(createEl('td', null, `${m.module_name} (${m.module_id})`));
+          const stCell = createEl('td');
+          const cls = m.status === 'pass' ? 'badge badge-active' : (m.status === 'warn' ? 'badge badge-inactive' : 'badge badge-info');
+          stCell.appendChild(createEl('span', { className: cls }, m.status.toUpperCase()));
+          tr.appendChild(stCell);
+          tr.appendChild(createEl('td', null, m.summary));
+          tr.appendChild(createEl('td', null, String(m.findings_count)));
+          tbody.appendChild(tr);
+        }
+        tbl.appendChild(tbody);
+        box.appendChild(tbl);
+      }
+
+      if (Array.isArray(data.findings) && data.findings.length > 0) {
+        box.appendChild(createEl('h4', null, 'Observações & Recomendações Defensivas:'));
+        const ul = createEl('ul', { className: 'finding-list' });
+        for (const f of data.findings) {
+          const li = createEl('li');
+          li.appendChild(createEl('span', { className: sevBadgeClass(f.severity) }, f.severity.toUpperCase()));
+          li.appendChild(document.createTextNode(` [${f.module_id}] ${f.item} — ${f.recommendation}`));
+          ul.appendChild(li);
+        }
+        box.appendChild(ul);
+      }
+
+      if (data.hardening_snippets && data.hardening_snippets.missing_count > 0) {
+        const fold = createEl('details', { className: 'fold-box' });
+        fold.appendChild(createEl('summary', null, `Snippets de Hardening Prontos (${data.hardening_snippets.missing_count} cabeçalhos sugeridos: Nginx / Apache / Express)`));
+        const swRow = createEl('div', { className: 'btn-row', style: 'margin-top:0.6rem;' });
+        const pre = createEl('pre', { className: 'code-out' }, data.hardening_snippets.nginx);
+        let activeSnippet = data.hardening_snippets.nginx;
+        [['Nginx', 'nginx'], ['Apache', 'apache'], ['Express.js', 'express']].forEach(([label, key]) => {
+          const b = createEl('button', { className: 'btn btn-secondary btn-small', type: 'button' }, label);
+          b.addEventListener('click', () => {
+            activeSnippet = data.hardening_snippets[key] || '';
+            pre.textContent = activeSnippet;
+          });
+          swRow.appendChild(b);
+        });
+        const bCopy = createEl('button', { className: 'btn btn-small', type: 'button' }, 'Copiar');
+        bCopy.addEventListener('click', () => copyTextSafe(activeSnippet, bCopy));
+        swRow.appendChild(bCopy);
+        fold.appendChild(swRow);
+        fold.appendChild(pre);
+        box.appendChild(fold);
+      }
+
+      if (data.response_headers) {
+        const foldHdr = createEl('details', { className: 'fold-box' });
+        foldHdr.appendChild(createEl('summary', null, `Cabeçalhos HTTP Recebidos (${Object.keys(data.response_headers).length})`));
+        const hdrLines = Object.entries(data.response_headers).map(([k, v]) => `${k}: ${v}`).join('\n');
+        foldHdr.appendChild(createEl('pre', { className: 'code-out' }, hdrLines));
+        box.appendChild(foldHdr);
+      }
+
+      if (data.ai_summary) {
+        box.appendChild(createEl('h4', null, 'Resumo Defensivo (IA Local):'));
+        box.appendChild(createEl('pre', { className: 'code-out' }, data.ai_summary));
+      }
+    }
+
+    async function runInspection() {
+      const target = document.getElementById('target-url').value.trim();
+      const method = document.getElementById('req-method').value;
+      const mode = document.getElementById('scan-mode').value;
+      const origin = document.getElementById('hdr-origin').value.trim();
+      const accept = document.getElementById('hdr-accept').value.trim();
+      const box = document.getElementById('inspect-results');
+      const btn = document.getElementById('btn-run-inspect');
+
+      if (!target) {
+        clearEl(box);
+        box.appendChild(createEl('span', { className: 'badge badge-error' }, 'Informe uma URL alvo válida.'));
+        return;
+      }
+
+      const custom_headers = {};
+      if (origin) custom_headers.origin = origin;
+      if (accept) custom_headers.accept = accept;
+
+      btn.disabled = true;
+      clearEl(box);
+      box.appendChild(createEl('p', null, `Executando inspeção passiva (${method}) em ${target}...`));
+
+      try {
+        const res = await fetch('/api/inspect/run', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ target, method, mode, custom_headers })
+        });
+        const data = await res.json();
+
+        if (!res.ok) {
+          clearEl(box);
+          box.appendChild(createEl('span', { className: 'badge badge-error' }, data.error || 'Falha na inspeção'));
+          return;
+        }
+
+        renderInspectionDetail(data);
+        await loadModules();
+        await refreshStatus();
+        await loadHistory();
+        await loadInventory();
+      } catch (err) {
+        clearEl(box);
+        box.appendChild(createEl('span', { className: 'badge badge-error' }, `Erro: ${err.message}`));
+      } finally {
+        btn.disabled = false;
+      }
+    }
+
+    async function loadHistory() {
+      const box = document.getElementById('inspect-history');
+      try {
+        const res = await fetch('/api/inspect/history');
+        const data = await res.json();
+        sessionHistory = data.history || [];
+        if (sessionHistory.length === 0) {
+          box.style.display = 'none';
+          return;
+        }
+        box.style.display = 'block';
+        clearEl(box);
+        box.appendChild(createEl('strong', null, `Histórico da Sessão (${sessionHistory.length}) — clique para reabrir ou enviar ao Comparer:`));
+
+        const tbl = createEl('table', { className: 'data-tbl' });
+        const thead = createEl('thead');
+        const hr = createEl('tr');
+        ['Método/HTTP', 'Alvo', 'Nota OWASP', 'Módulos', 'Ações'].forEach(t => hr.appendChild(createEl('th', null, t)));
+        thead.appendChild(hr);
+        tbl.appendChild(thead);
+
+        const tbody = createEl('tbody');
+        for (const item of sessionHistory) {
+          const tr = createEl('tr');
+          tr.appendChild(createEl('td', null, `${item.method} ${item.status_code} (${item.duration_ms}ms)`));
+          tr.appendChild(createEl('td', null, item.target));
+          tr.appendChild(createEl('td', null, `${item.owasp_grade} (${item.owasp_score}/100)`));
+          tr.appendChild(createEl('td', null, `${item.executed_modules_count}`));
+
+          const actTd = createEl('td');
+          const rowBtns = createEl('div', { className: 'btn-row' });
+
+          const bView = createEl('button', { className: 'btn btn-small', type: 'button' }, 'Ver');
+          bView.addEventListener('click', () => renderInspectionDetail(item));
+
+          const hdrText = Object.entries(item.response_headers || {}).map(([k, v]) => `${k}: ${v}`).join('\n');
+          const bA = createEl('button', { className: 'btn btn-secondary btn-small', type: 'button' }, '→ Cmp A');
+          bA.addEventListener('click', () => {
+            document.getElementById('cmp-a').value = hdrText;
+            document.querySelector('[data-panel="panel-comparer"]').click();
+            document.getElementById('workbench').scrollIntoView({ behavior: 'smooth' });
+          });
+
+          const bB = createEl('button', { className: 'btn btn-secondary btn-small', type: 'button' }, '→ Cmp B');
+          bB.addEventListener('click', () => {
+            document.getElementById('cmp-b').value = hdrText;
+            document.querySelector('[data-panel="panel-comparer"]').click();
+            document.getElementById('workbench').scrollIntoView({ behavior: 'smooth' });
+          });
+
+          rowBtns.appendChild(bView);
+          rowBtns.appendChild(bA);
+          rowBtns.appendChild(bB);
+          actTd.appendChild(rowBtns);
+          tr.appendChild(actTd);
+          tbody.appendChild(tr);
+        }
+        tbl.appendChild(tbody);
+        box.appendChild(tbl);
+      } catch {
+        box.style.display = 'none';
+      }
+    }
+
+    async function loadInventory() {
+      const box = document.getElementById('inventory-box');
+      try {
+        const res = await fetch('/api/inventory');
+        const data = await res.json();
+        const hosts = data.hosts || [];
+        clearEl(box);
+        if (hosts.length === 0) {
+          box.textContent = 'Nenhum host inspecionado ainda nesta sessão.';
+          return;
+        }
+        const tbl = createEl('table', { className: 'data-tbl' });
+        const thead = createEl('thead');
+        const hr = createEl('tr');
+        ['Host', 'Protocolo / TLS', 'Postura DNS', 'Último HTTP', 'Nota OWASP', 'Observações'].forEach(t => hr.appendChild(createEl('th', null, t)));
+        thead.appendChild(hr);
+        tbl.appendChild(thead);
+
+        const tbody = createEl('tbody');
+        for (const h of hosts) {
+          const tr = createEl('tr');
+          tr.appendChild(createEl('td', null, h.host));
+          tr.appendChild(createEl('td', null, h.tls_protocol ? `${h.protocol} (${h.tls_protocol})` : h.protocol));
+          tr.appendChild(createEl('td', null, h.dns_summary || '—'));
+          tr.appendChild(createEl('td', null, String(h.last_status)));
+          tr.appendChild(createEl('td', null, `${h.owasp_grade} (${h.owasp_score}/100)`));
+          tr.appendChild(createEl('td', null, String(h.findings_count)));
+          tbody.appendChild(tr);
+        }
+        tbl.appendChild(tbody);
+        box.appendChild(tbl);
+      } catch {
+        box.textContent = 'Erro ao carregar inventário.';
+      }
+    }
+
+    async function runDecoder(op) {
+      const input = document.getElementById('dec-input').value;
+      const out = document.getElementById('dec-output');
+      try {
+        if (op === 'b64e') out.textContent = btoa(unescape(encodeURIComponent(input)));
+        else if (op === 'b64d') out.textContent = decodeURIComponent(escape(atob(input.trim())));
+        else if (op === 'urle') out.textContent = encodeURIComponent(input);
+        else if (op === 'urld') out.textContent = decodeURIComponent(input);
+        else if (op === 'htmle') {
+          out.textContent = input.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+        } else if (op === 'htmld') {
+          const parser = new DOMParser();
+          const doc = parser.parseFromString(input, 'text/html');
+          out.textContent = doc.documentElement.textContent || '';
+        } else if (op === 'hexe') {
+          const bytes = new TextEncoder().encode(input);
+          out.textContent = Array.from(bytes, b => b.toString(16).padStart(2, '0')).join('');
+        } else if (op === 'hexd') {
+          const clean = input.replace(/\s+/g, '');
+          if (clean.length % 2 !== 0) throw new Error('Hexadecimal com tamanho ímpar.');
+          const bytes = new Uint8Array(clean.length / 2);
+          for (let i = 0; i < bytes.length; i++) bytes[i] = parseInt(clean.slice(i * 2, i * 2 + 2), 16);
+          out.textContent = new TextDecoder().decode(bytes);
+        } else if (op === 'jwt') {
+          const parts = input.trim().split('.');
+          if (parts.length < 2) throw new Error('Token JWT inválido (esperado header.payload.signature).');
+          const b64url = s => decodeURIComponent(escape(atob(s.replace(/-/g, '+').replace(/_/g, '/').padEnd(Math.ceil(s.length / 4) * 4, '='))));
+          const hdr = JSON.parse(b64url(parts[0]));
+          const pay = JSON.parse(b64url(parts[1]));
+          out.textContent = JSON.stringify({ header: hdr, payload: pay, has_signature: Boolean(parts[2]) }, null, 2);
+        } else if (op === 'sha256') {
+          const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(input));
+          out.textContent = Array.from(new Uint8Array(buf), b => b.toString(16).padStart(2, '0')).join('');
+        }
+      } catch (err) {
+        out.textContent = `Erro na operação: ${err.message}`;
+      }
+    }
+
+    function runComparer() {
+      const linesA = document.getElementById('cmp-a').value.split('\n');
+      const linesB = document.getElementById('cmp-b').value.split('\n');
+      const box = document.getElementById('cmp-output');
+      clearEl(box);
+      const maxLen = Math.max(linesA.length, linesB.length);
+      let diffs = 0;
+      for (let i = 0; i < maxLen; i++) {
+        const a = linesA[i];
+        const b = linesB[i];
+        if (a === b) {
+          box.appendChild(createEl('div', { className: 'diff-line diff-same' }, `  ${i + 1}: ${a ?? ''}`));
+        } else {
+          diffs++;
+          if (a !== undefined) box.appendChild(createEl('div', { className: 'diff-line diff-del' }, `- ${i + 1}: ${a}`));
+          if (b !== undefined) box.appendChild(createEl('div', { className: 'diff-line diff-add' }, `+ ${i + 1}: ${b}`));
+        }
+      }
+      box.insertBefore(createEl('p', null, `Linhas comparadas: ${maxLen} | Diferenças encontradas: ${diffs}`), box.firstChild);
+    }
+
+    function runEntropy() {
+      const token = document.getElementById('ent-input').value;
+      const box = document.getElementById('ent-output');
+      clearEl(box);
+      if (!token) {
+        box.appendChild(createEl('span', { className: 'badge badge-error' }, 'Informe um token para análise.'));
+        return;
+      }
+      const freq = {};
+      for (const ch of token) freq[ch] = (freq[ch] || 0) + 1;
+      let h = 0;
+      for (const count of Object.values(freq)) {
+        const p = count / token.length;
+        h -= p * Math.log2(p);
+      }
+      const totalBits = h * token.length;
+      const rating = totalBits >= 128 ? 'Forte (>= 128 bits)' : (totalBits >= 64 ? 'Moderada (64–127 bits)' : 'Fraca (< 64 bits)');
+      const badgeCls = totalBits >= 128 ? 'badge badge-active' : (totalBits >= 64 ? 'badge badge-inactive' : 'badge badge-error');
+      box.appendChild(createEl('p', null, `Comprimento: ${token.length} caracteres | Símbolos únicos: ${Object.keys(freq).length}`));
+      box.appendChild(createEl('p', null, `Entropia de Shannon: ${h.toFixed(3)} bits/caractere | Total estimado: ${totalBits.toFixed(1)} bits`));
+      box.appendChild(createEl('span', { className: badgeCls }, `Classificação: ${rating}`));
+    }
+
+    function runUrlParser() {
+      const raw = document.getElementById('url-parse-input').value.trim();
+      const out = document.getElementById('url-parse-output');
+      try {
+        const u = new URL(raw);
+        const params = {};
+        for (const [k, v] of u.searchParams.entries()) params[k] = v;
+        out.textContent = JSON.stringify({
+          protocol: u.protocol,
+          hostname: u.hostname,
+          port: u.port || '(padrão)',
+          pathname: u.pathname,
+          hash: u.hash || '(vazio)',
+          query_params: params
+        }, null, 2);
+      } catch (err) {
+        out.textContent = `URL inválida: ${err.message}`;
+      }
+    }
+
+    async function runSchemaValidation() {
+      const mode = document.getElementById('schema-mode').value;
+      const payload = document.getElementById('schema-payload').value.trim();
+      const schema = document.getElementById('schema-def').value.trim();
+      const box = document.getElementById('schema-output');
+      clearEl(box);
+
+      if (!payload) {
+        box.appendChild(createEl('span', { className: 'badge badge-error' }, 'Cole um JSON para validar.'));
+        return;
+      }
+
+      try {
+        const res = await fetch('/api/qa/validate-schema', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ mode, payload, schema: mode === 'json-schema' ? schema : undefined })
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          box.appendChild(createEl('span', { className: 'badge badge-error' }, data.error || 'Erro na validação'));
+          return;
+        }
+        if (mode === 'json-schema') {
+          box.appendChild(createEl('span', { className: data.valid ? 'badge badge-active' : 'badge badge-error' }, data.valid ? 'JSON VÁLIDO conforme Schema' : `JSON INVÁLIDO (${data.error_count} erro(s))`));
+          if (data.errors && data.errors.length > 0) {
+            const ul = createEl('ul', { className: 'finding-list' });
+            for (const e of data.errors) ul.appendChild(createEl('li', null, `${e.path}: ${e.message}`));
+            box.appendChild(ul);
+          }
+        } else {
+          const grade = data.metrics && data.metrics.qa_grade ? `Nota QA: ${data.metrics.qa_grade} (${data.metrics.qa_score}/100)` : '';
+          box.appendChild(createEl('span', { className: data.is_openapi ? 'badge badge-active' : 'badge badge-inactive' }, `${data.summary}${grade ? ' · ' + grade : ''}`));
+          if (data.findings && data.findings.length > 0) {
+            const ul = createEl('ul', { className: 'finding-list' });
+            for (const f of data.findings) {
+              const li = createEl('li');
+              li.appendChild(createEl('span', { className: sevBadgeClass(f.severity) }, f.severity.toUpperCase()));
+              li.appendChild(document.createTextNode(` ${f.item} — ${f.recommendation}`));
+              ul.appendChild(li);
+            }
+            box.appendChild(ul);
+          } else {
+            box.appendChild(createEl('p', null, 'Nenhum ponto de atenção defensivo encontrado no contrato OpenAPI.'));
+          }
+        }
+      } catch (err) {
+        box.appendChild(createEl('span', { className: 'badge badge-error' }, `Erro: ${err.message}`));
+      }
+    }
+
+    async function runCspAudit() {
+      const csp = document.getElementById('csp-audit-input').value.trim();
+      const box = document.getElementById('csp-audit-output');
+      clearEl(box);
+      if (!csp) {
+        box.appendChild(createEl('span', { className: 'badge badge-error' }, 'Cole um cabeçalho Content-Security-Policy primeiro.'));
+        return;
+      }
+      try {
+        const res = await fetch('/api/qa/audit-csp', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ csp })
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          box.appendChild(createEl('span', { className: 'badge badge-error' }, data.error || 'Erro ao auditar CSP'));
+          return;
+        }
+        box.appendChild(createEl('span', { className: data.findings.length ? 'badge badge-inactive' : 'badge badge-active' }, `${data.directive_count} diretiva(s) analisada(s) · ${data.findings.length} observação(ões)`));
+        if (data.findings.length > 0) {
+          const ul = createEl('ul', { className: 'finding-list' });
+          for (const f of data.findings) {
+            const li = createEl('li');
+            li.appendChild(createEl('span', { className: sevBadgeClass(f.severity) }, f.severity.toUpperCase()));
+            li.appendChild(document.createTextNode(` ${f.item} — ${f.recommendation}`));
+            ul.appendChild(li);
+          }
+          box.appendChild(ul);
+        }
+      } catch (err) {
+        box.appendChild(createEl('span', { className: 'badge badge-error' }, `Erro: ${err.message}`));
+      }
+    }
+
+    function buildHardenedPolicy() {
+      const headers = [
+        ['X-Content-Type-Options', 'nosniff'],
+        ['X-Frame-Options', 'DENY'],
+        ['Referrer-Policy', 'strict-origin-when-cross-origin']
+      ];
+      if (document.getElementById('pol-csp').checked) {
+        headers.push(['Content-Security-Policy', "default-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'; upgrade-insecure-requests"]);
+      }
+      if (document.getElementById('pol-hsts').checked) {
+        headers.push(['Strict-Transport-Security', 'max-age=63072000; includeSubDomains; preload']);
+      }
+      if (document.getElementById('pol-coop').checked) {
+        headers.push(['Cross-Origin-Opener-Policy', 'same-origin']);
+        headers.push(['Cross-Origin-Embedder-Policy', 'require-corp']);
+        headers.push(['Cross-Origin-Resource-Policy', 'same-origin']);
+      }
+      if (document.getElementById('pol-perm').checked) {
+        headers.push(['Permissions-Policy', 'camera=(), microphone=(), geolocation=(), payment=()']);
+      }
+
+      const fmt = document.getElementById('pol-format').value;
+      let text = '';
+      if (fmt === 'nginx') {
+        text = ['server_tokens off;', ...headers.map(([k, v]) => `add_header ${k} "${v}" always;`)].join('\n');
+      } else if (fmt === 'apache') {
+        text = ['ServerTokens Prod', 'ServerSignature Off', ...headers.map(([k, v]) => `Header always set ${k} "${v}"`)].join('\n');
+      } else if (fmt === 'express') {
+        text = [
+          "app.disable('x-powered-by');",
+          'app.use((req, res, next) => {',
+          ...headers.map(([k, v]) => `  res.setHeader('${k}', ${JSON.stringify(v)});`),
+          '  next();',
+          '});'
+        ].join('\n');
+      } else {
+        text = headers.map(([k, v]) => `${k}: ${v}`).join('\n');
+      }
+      document.getElementById('pol-output').textContent = text;
+    }
+
+    async function recommendModulesAI() {
+      const ctx = document.getElementById('mod-ai-context').value.trim();
+      const box = document.getElementById('mod-ai-result');
+      const btn = document.getElementById('btn-ai-select-mods');
+      if (!ctx) {
+        box.style.display = 'block';
+        clearEl(box);
+        box.appendChild(createEl('span', { className: 'badge badge-error' }, 'Descreva o contexto da aplicação primeiro.'));
+        return;
+      }
+      box.style.display = 'block';
+      clearEl(box);
+      box.appendChild(createEl('p', null, 'Consultando recomendação enxuta de módulos...'));
+      btn.disabled = true;
+      try {
+        const res = await fetch('/api/ai/recommend-modules', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ context: ctx, apply: true })
+        });
+        const data = await res.json();
+        clearEl(box);
+        if (!res.ok) {
+          box.appendChild(createEl('span', { className: 'badge badge-error' }, data.error || 'Erro ao recomendar módulos'));
+          return;
+        }
+        box.appendChild(createEl('span', { className: 'badge badge-active' }, `Módulos aplicados (${data.applied_ids.length}): ${data.applied_ids.join(', ')}`));
+        if (data.rationale) box.appendChild(createEl('pre', { className: 'code-out' }, data.rationale));
+        await loadModules();
+        await refreshStatus();
+      } catch (err) {
+        clearEl(box);
+        box.appendChild(createEl('span', { className: 'badge badge-error' }, `Erro: ${err.message}`));
+      } finally {
+        btn.disabled = false;
+      }
+    }
+
+    async function saveMode() {
+      const mode = document.getElementById('scan-mode').value;
+      const res = await fetch('/api/mode', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mode })
+      });
+      if (res.ok) await refreshStatus();
+    }
+
+    async function saveAiConfig() {
+      const box = document.getElementById('ai-status');
+      box.style.display = 'block';
+      clearEl(box);
+      const res = await fetch('/api/ai/config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ai_type: document.getElementById('ai-type').value,
+          ai_endpoint: document.getElementById('ai-endpoint').value.trim(),
+          ai_model: document.getElementById('ai-model').value.trim()
+        })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        box.appendChild(createEl('span', { className: 'badge badge-active' }, 'Configuração de IA salva com sucesso.'));
+        await refreshStatus();
+      } else {
+        box.appendChild(createEl('span', { className: 'badge badge-error' }, data.error || 'Erro ao salvar configuração.'));
+      }
+    }
+
+    async function testAIConnection() {
+      const box = document.getElementById('ai-status');
+      const btn = document.getElementById('btn-test-ai');
+      const msg = document.getElementById('ai-prompt').value.trim() || 'Teste de conexão defensiva - responda de forma curta que a conexão está OK.';
+      box.style.display = 'block';
+      clearEl(box);
+      box.appendChild(createEl('p', null, 'Consultando IA local...'));
+      btn.disabled = true;
+
+      try {
+        const res = await fetch('/api/ai/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ message: msg, mode: 'ai-automation' })
+        });
+        const data = await res.json();
+        clearEl(box);
+        if (!res.ok) {
+          box.appendChild(createEl('span', { className: 'badge badge-error' }, data.error || 'Erro na consulta IA'));
+          return;
+        }
+        box.appendChild(createEl('span', { className: 'badge badge-active' }, 'Resposta recebida'));
+        box.appendChild(createEl('pre', { className: 'code-out' }, data.response || ''));
+      } catch (err) {
+        clearEl(box);
+        box.appendChild(createEl('span', { className: 'badge badge-error' }, `Erro: ${err.message}`));
+      } finally {
+        btn.disabled = false;
+      }
+    }
+
+    async function generateReport() {
+      const btn = document.getElementById('btn-gen-report');
+      const statusBox = document.getElementById('report-status');
+      const format = document.getElementById('report-type').value;
+      const origText = btn.textContent;
+
+      const qs = new URLSearchParams({
+        format,
+        title: document.getElementById('report-title').value.trim() || 'Relatório de Auditoria Passiva OWASP',
+        org: document.getElementById('report-org').value.trim() || 'Equipe de Engenharia & Segurança',
+        classification: document.getElementById('report-classification').value,
+        min_severity: document.getElementById('report-min-sev').value,
+        include_modules: String(document.getElementById('rep-inc-modules').checked),
+        include_snippets: String(document.getElementById('rep-inc-snippets').checked),
+        include_headers: String(document.getElementById('rep-inc-headers').checked)
+      });
+
+      btn.textContent = 'Gerando...';
+      btn.disabled = true;
+      clearEl(statusBox);
+
+      try {
+        const res = await fetch(`/api/report?${qs.toString()}`);
+        if (!res.ok) throw new Error(await res.text());
+        const blob = await res.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `aegis-web-report-${new Date().toISOString().slice(0, 10)}.${format}`;
+        a.click();
+        URL.revokeObjectURL(url);
+        statusBox.appendChild(createEl('span', { className: 'badge badge-active' }, `Relatório ${format.toUpperCase()} personalizado gerado e baixado.`));
+      } catch (err) {
+        statusBox.appendChild(createEl('span', { className: 'badge badge-error' }, `Erro: ${err.message}`));
+      } finally {
+        btn.textContent = origText;
+        btn.disabled = false;
+      }
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      document.querySelectorAll('.tab-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+          document.querySelectorAll('.tool-panel').forEach(p => p.classList.remove('active'));
+          btn.classList.add('active');
+          document.getElementById(btn.dataset.panel).classList.add('active');
+        });
+      });
+
+      document.querySelectorAll('[data-dec]').forEach(btn => {
+        btn.addEventListener('click', () => runDecoder(btn.dataset.dec));
+      });
+
+      document.getElementById('schema-mode').addEventListener('change', (ev) => {
+        const isSchema = ev.target.value === 'json-schema';
+        document.getElementById('schema-def-group').style.display = isSchema ? 'block' : 'none';
+        document.getElementById('schema-payload-label').textContent = isSchema ? 'Payload JSON de Teste:' : 'Documento OpenAPI JSON:';
+      });
+
+      document.getElementById('btn-load-sample-schema').addEventListener('click', () => {
+        const isSchema = document.getElementById('schema-mode').value === 'json-schema';
+        if (isSchema) {
+          document.getElementById('schema-payload').value = JSON.stringify({ id: 42, email: 'dev@example.com', role: 'viewer' }, null, 2);
+          document.getElementById('schema-def').value = JSON.stringify({
+            type: 'object',
+            required: ['id', 'email', 'role'],
+            properties: {
+              id: { type: 'integer', minimum: 1 },
+              email: { type: 'string', format: 'email' },
+              role: { type: 'string', enum: ['admin', 'editor', 'viewer'] }
+            },
+            additionalProperties: false
+          }, null, 2);
+        } else {
+          document.getElementById('schema-payload').value = JSON.stringify({
+            openapi: '3.0.3',
+            info: { title: 'Catalog API', version: '1.2.0' },
+            servers: [{ url: 'https://api.example.com/v1' }],
+            components: { securitySchemes: { bearerAuth: { type: 'http', scheme: 'bearer', bearerFormat: 'JWT' } } },
+            security: [{ bearerAuth: [] }],
+            paths: {
+              '/health': { get: { security: [], responses: { '200': { description: 'OK' } } } },
+              '/items': { get: { responses: { '200': { description: 'Lista de itens' } } } }
+            }
+          }, null, 2);
+        }
+      });
+
+      document.getElementById('btn-validate-schema').addEventListener('click', runSchemaValidation);
+      document.getElementById('btn-audit-csp').addEventListener('click', runCspAudit);
+      document.getElementById('btn-build-policy').addEventListener('click', buildHardenedPolicy);
+      document.getElementById('btn-copy-policy').addEventListener('click', (ev) => {
+        copyTextSafe(document.getElementById('pol-output').textContent, ev.target);
+      });
+
+      document.getElementById('btn-compare').addEventListener('click', runComparer);
+      document.getElementById('btn-entropy').addEventListener('click', runEntropy);
+      document.getElementById('btn-parse-url').addEventListener('click', runUrlParser);
+      document.getElementById('btn-run-inspect').addEventListener('click', runInspection);
+      document.getElementById('btn-save-mode').addEventListener('click', saveMode);
+      document.getElementById('btn-refresh-history').addEventListener('click', async () => {
+        await loadHistory();
+        await loadInventory();
+      });
+      document.getElementById('btn-clear-history').addEventListener('click', async () => {
+        await fetch('/api/inspect/history', { method: 'DELETE' });
+        await loadHistory();
+        await loadInventory();
+        await refreshStatus();
+      });
+      document.getElementById('btn-ai-select-mods').addEventListener('click', recommendModulesAI);
+      document.getElementById('btn-save-ai').addEventListener('click', saveAiConfig);
+      document.getElementById('btn-test-ai').addEventListener('click', testAIConnection);
+      document.getElementById('btn-gen-report').addEventListener('click', generateReport);
+      document.getElementById('ai-type').addEventListener('change', toggleEndpointVisibility);
+      document.getElementById('mod-filter').addEventListener('input', renderModules);
+      document.getElementById('mod-cat-filter').addEventListener('change', renderModules);
+
+      document.getElementById('mod-preset').addEventListener('change', async (ev) => {
+        const preset = ev.target.value;
+        if (!preset) return;
+        const res = await fetch('/api/modules/bulk', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ preset })
+        });
+        if (res.ok) {
+          await loadModules();
+          await refreshStatus();
+        }
+        ev.target.value = '';
+      });
+
+      refreshStatus();
+      loadModules();
+      loadHistory();
+      loadInventory();
+    });
+  </script>
+</body>
+</html>

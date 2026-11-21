@@ -1,0 +1,5 @@
+{
+  "ai_type": "ollama",
+  "ai_endpoint": "http://127.0.0.1:11434",
+  "ai_model": "deepseek-v4-heretic:9b"
+}
