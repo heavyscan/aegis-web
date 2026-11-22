@@ -11,9 +11,11 @@
       --accent: #38bdf8;
       --bg-light: #f1f5f9;
       --bg-white: #ffffff;
+      --bg-surface: #f8fafc;
       --text-dark: #0f172a;
       --text-secondary: #475569;
       --border: #e2e8f0;
+      --input-border: #cbd5e1;
       --success: #16a34a;
       --warning: #d97706;
       --error: #dc2626;
@@ -22,35 +24,66 @@
 
     * { box-sizing: border-box; }
 
+    html, body {
+      width: 100%;
+      max-width: 100%;
+      overflow-x: hidden;
+      overflow-x: clip;
+      overscroll-behavior-x: none;
+      touch-action: pan-y pinch-zoom;
+    }
+
     body {
       font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
       margin: 0;
       padding: 0;
       background: var(--bg-light);
       color: var(--text-dark);
+      -webkit-text-size-adjust: 100%;
     }
+
+    .theme-btn {
+      background: rgba(255, 255, 255, 0.12);
+      color: #f8fafc;
+      border: 1px solid rgba(255, 255, 255, 0.22);
+      border-radius: 999px;
+      padding: 0.32rem 0.7rem;
+      font-size: 0.78rem;
+      font-weight: 600;
+      cursor: pointer;
+      white-space: nowrap;
+      flex-shrink: 0;
+      line-height: 1.2;
+    }
+
+    .theme-btn:hover { background: rgba(255, 255, 255, 0.22); }
+
+    .sparkline { display: inline-block; vertical-align: middle; }
 
     .navbar {
       background: #0b132b;
       color: white;
-      padding: 0.9rem 1.8rem;
+      width: 100%;
+      max-width: 100%;
+      padding: 0.8rem 1.5rem;
       display: flex;
       justify-content: space-between;
       align-items: center;
+      flex-wrap: wrap;
+      gap: 0.65rem 1rem;
       box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
-      position: fixed;
+      position: sticky;
       top: 0;
-      left: 0;
-      right: 0;
       z-index: 100;
     }
 
     .navbar .logo {
-      font-size: 1.18rem;
+      font-size: 1.12rem;
       font-weight: 700;
       display: flex;
       align-items: center;
       gap: 0.65rem;
+      flex-shrink: 0;
     }
 
     .navbar .logo-icon {
@@ -64,32 +97,40 @@
       font-weight: 700;
       color: white;
       font-size: 0.9rem;
+      flex-shrink: 0;
     }
 
     .nav-links {
       display: flex;
-      gap: 15px;
+      gap: 8px 14px;
       flex-wrap: wrap;
+      align-items: center;
+      min-width: 0;
     }
 
     .navbar a {
       color: #cbd5e1;
       text-decoration: none;
-      font-size: 0.88rem;
+      font-size: 0.86rem;
       font-weight: 500;
       transition: color 0.2s;
+      white-space: nowrap;
     }
 
     .navbar a:hover { color: var(--accent); }
 
     .main {
-      margin-top: 74px;
-      padding: 1.5rem;
+      width: 100%;
+      max-width: 100%;
+      overflow-x: clip;
+      padding: 1.35rem 1.5rem 2rem;
     }
 
     .container {
       max-width: 1180px;
       margin: 0 auto;
+      width: 100%;
+      min-width: 0;
     }
 
     .card {
@@ -99,40 +140,108 @@
       margin-bottom: 1.3rem;
       box-shadow: 0 1px 3px rgba(15, 23, 42, 0.08);
       border-left: 4px solid var(--primary);
+      width: 100%;
+      min-width: 0;
+      max-width: 100%;
+      overflow-x: clip;
+      overflow-wrap: anywhere;
+      scroll-margin-top: 96px;
     }
 
     .card h2 {
       margin-top: 0;
-      margin-bottom: 0.65rem;
+      margin-bottom: 0.6rem;
       color: #0b132b;
       font-size: 1.16rem;
+      line-height: 1.35;
+    }
+
+    .card > p {
+      margin: 0 0 0.85rem;
+      line-height: 1.5;
+      font-size: 0.9rem;
+      color: var(--text-secondary);
+    }
+
+    .home-overview-grid {
+      display: grid;
+      grid-template-columns: minmax(255px, 315px) minmax(0, 1fr);
+      gap: 12px;
+      align-items: stretch;
+      margin-top: 0.85rem;
+      width: 100%;
+      min-width: 0;
+    }
+
+    .gauge-box {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 0.85rem 1rem;
+      width: 100%;
+      min-width: 0;
+    }
+
+    .gauge-svg-wrap {
+      width: 68px;
+      height: 68px;
+      flex: 0 0 68px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .gauge-meta {
+      min-width: 0;
+      flex: 1;
+      overflow-wrap: anywhere;
+    }
+
+    .gauge-sub {
+      font-size: 0.76rem;
+      color: var(--text-secondary);
+      margin-top: 4px;
+      line-height: 1.35;
     }
 
     .status-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(185px, 1fr));
-      gap: 12px;
-      margin-top: 0.9rem;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+      margin-top: 0;
+      width: 100%;
+      min-width: 0;
     }
 
     .stat-box {
-      background: #f8fafc;
+      background: var(--bg-surface);
       border: 1px solid var(--border);
       border-radius: 6px;
-      padding: 0.8rem;
+      padding: 0.78rem 0.85rem;
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      overflow-wrap: anywhere;
     }
 
     .stat-label {
-      font-size: 0.73rem;
+      font-size: 0.72rem;
       color: var(--text-secondary);
       text-transform: uppercase;
       letter-spacing: 0.04em;
+      line-height: 1.25;
     }
 
     .stat-value {
-      font-size: 1.02rem;
+      font-size: 1rem;
       font-weight: 700;
       margin-top: 4px;
+      line-height: 1.3;
+      color: var(--text-dark);
     }
 
     .score-bar-track {
@@ -155,6 +264,9 @@
       gap: 8px;
       flex-wrap: wrap;
       margin-bottom: 1rem;
+      width: 100%;
+      max-width: 100%;
+      min-width: 0;
     }
 
     .tab-btn {
@@ -174,22 +286,42 @@
       border-color: var(--primary);
     }
 
-    .tool-panel { display: none; }
+    .tool-panel {
+      display: none;
+      width: 100%;
+      max-width: 100%;
+      min-width: 0;
+    }
     .tool-panel.active { display: block; }
 
     .two-col {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      grid-template-columns: repeat(auto-fit, minmax(min(260px, 100%), 1fr));
       gap: 12px;
+      width: 100%;
+      max-width: 100%;
+      min-width: 0;
     }
 
     .three-col {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+      grid-template-columns: repeat(auto-fit, minmax(min(190px, 100%), 1fr));
       gap: 10px;
+      width: 100%;
+      max-width: 100%;
+      min-width: 0;
     }
 
-    .input-group { margin-bottom: 0.9rem; }
+    .two-col > *, .three-col > * {
+      min-width: 0;
+      max-width: 100%;
+    }
+
+    .input-group {
+      margin-bottom: 0.9rem;
+      min-width: 0;
+      max-width: 100%;
+    }
 
     .input-group label {
       display: block;
@@ -199,14 +331,73 @@
     }
 
     .input-group input[type="text"],
+    .input-group input[type="password"],
+    .input-group input[type="number"],
     .input-group select,
     .input-group textarea {
+      display: block;
       width: 100%;
+      max-width: 100%;
+      min-width: 0;
       padding: 0.6rem 0.72rem;
-      border: 1px solid #cbd5e1;
+      border: 1px solid var(--input-border);
+      background: var(--bg-white);
+      color: var(--text-dark);
       border-radius: 5px;
       font-size: 0.87rem;
       font-family: inherit;
+    }
+
+    .sev-strip-dash {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 8px;
+      margin-top: 0.85rem;
+      width: 100%;
+      min-width: 0;
+    }
+
+    .sev-mini {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 6px;
+      padding: 0.5rem 0.75rem;
+      border-radius: 6px;
+      font-size: 0.76rem;
+      font-weight: 700;
+      border-left: 3px solid;
+      min-width: 0;
+    }
+
+    .sev-mini strong { font-size: 0.98rem; }
+    .sev-mini-high { background: #fee2e2; color: #991b1b; border-color: #dc2626; }
+    .sev-mini-medium { background: #ffedd5; color: #9a3412; border-color: #ea580c; }
+    .sev-mini-low { background: #fef3c7; color: #92400e; border-color: #d97706; }
+    .sev-mini-info { background: #e0f2fe; color: #075985; border-color: #0284c7; }
+
+    .filter-pills {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+      margin: 0.45rem 0 0.6rem;
+    }
+
+    .pill-btn {
+      padding: 0.25rem 0.65rem;
+      border-radius: 999px;
+      border: 1px solid #cbd5e1;
+      background: #fff;
+      color: var(--text-dark);
+      font-size: 0.75rem;
+      font-weight: 600;
+      cursor: pointer;
+    }
+
+    .pill-btn.active {
+      background: #0b132b;
+      color: #fff;
+      border-color: #0b132b;
     }
 
     .check-row {
@@ -256,6 +447,10 @@
       border-radius: 999px;
       font-size: 0.73rem;
       font-weight: 600;
+      max-width: 100%;
+      white-space: normal;
+      overflow-wrap: anywhere;
+      vertical-align: middle;
     }
 
     .badge-active { background: #dcfce7; color: #166534; }
@@ -266,9 +461,12 @@
 
     .mod-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(275px, 1fr));
+      grid-template-columns: repeat(auto-fill, minmax(min(275px, 100%), 1fr));
       gap: 10px;
       margin-top: 0.9rem;
+      width: 100%;
+      max-width: 100%;
+      min-width: 0;
     }
 
     .mod-card {
@@ -280,6 +478,8 @@
       flex-direction: column;
       justify-content: space-between;
       gap: 7px;
+      min-width: 0;
+      overflow-wrap: anywhere;
     }
 
     .mod-header {
@@ -288,6 +488,13 @@
       align-items: center;
       gap: 8px;
       flex-wrap: wrap;
+      min-width: 0;
+    }
+
+    .mod-header strong {
+      overflow-wrap: anywhere;
+      word-break: break-word;
+      min-width: 0;
     }
 
     .mod-desc {
@@ -303,6 +510,21 @@
       border: 1px solid var(--border);
       border-radius: 6px;
       font-size: 0.85rem;
+      min-width: 0;
+      max-width: 100%;
+      overflow-wrap: anywhere;
+    }
+
+    .result-box p {
+      margin: 0.45rem 0;
+      line-height: 1.45;
+      overflow-wrap: anywhere;
+    }
+
+    .result-box h4 {
+      margin: 1rem 0 0.45rem;
+      color: #0b132b;
+      font-size: 0.94rem;
     }
 
     .finding-list {
@@ -311,15 +533,29 @@
     }
 
     .finding-list li {
-      margin-bottom: 0.45rem;
-      line-height: 1.42;
+      margin-bottom: 0.5rem;
+      line-height: 1.45;
+      overflow-wrap: anywhere;
+      word-break: break-word;
+    }
+
+    .table-wrap {
+      width: 100%;
+      max-width: 100%;
+      overflow-x: auto;
+      overscroll-behavior-x: contain;
+      touch-action: pan-x pan-y pinch-zoom;
+      -webkit-overflow-scrolling: touch;
+      margin-top: 0.6rem;
+      border-radius: 6px;
     }
 
     table.data-tbl {
       width: 100%;
       border-collapse: collapse;
-      margin-top: 0.6rem;
+      margin-top: 0;
       font-size: 0.82rem;
+      background: #fff;
     }
 
     table.data-tbl th,
@@ -327,15 +563,20 @@
       border: 1px solid var(--border);
       padding: 0.45rem 0.6rem;
       text-align: left;
+      vertical-align: top;
+      overflow-wrap: anywhere;
+      word-break: break-word;
     }
 
     table.data-tbl th {
       background: #0b132b;
       color: white;
+      white-space: nowrap;
     }
 
     pre.code-out {
       white-space: pre-wrap;
+      overflow-wrap: anywhere;
       word-break: break-word;
       background: #0b132b;
       color: #e2e8f0;
@@ -343,8 +584,12 @@
       border-radius: 6px;
       font-size: 0.8rem;
       overflow-x: auto;
+      overscroll-behavior-x: contain;
+      touch-action: pan-x pan-y pinch-zoom;
       margin: 0.55rem 0 0;
       max-height: 300px;
+      width: 100%;
+      max-width: 100%;
     }
 
     details.fold-box {
@@ -353,6 +598,8 @@
       border-radius: 6px;
       padding: 0.55rem 0.75rem;
       background: #fff;
+      min-width: 0;
+      max-width: 100%;
     }
 
     details.fold-box summary {
@@ -360,6 +607,7 @@
       font-weight: 600;
       font-size: 0.84rem;
       color: #0b132b;
+      overflow-wrap: anywhere;
     }
 
     .diff-line {
@@ -367,14 +615,298 @@
       font-size: 0.8rem;
       padding: 2px 6px;
       white-space: pre-wrap;
+      overflow-wrap: anywhere;
     }
     .diff-add { background: #dcfce7; color: #166534; }
     .diff-del { background: #fee2e2; color: #991b1b; }
     .diff-same { color: #334155; }
 
-    @media (max-width: 640px) {
-      .navbar { flex-direction: column; align-items: flex-start; gap: 0.5rem; }
-      .main { margin-top: 108px; padding: 1rem; }
+    @media (max-width: 920px) {
+      .home-overview-grid {
+        grid-template-columns: minmax(0, 1fr);
+      }
+    }
+
+    @media (max-width: 768px) {
+      .navbar {
+        flex-direction: column;
+        flex-wrap: nowrap;
+        align-items: stretch;
+        width: 100%;
+        max-width: 100%;
+        overflow: hidden;
+        padding: 0.7rem 0.9rem;
+        gap: 0.55rem;
+      }
+
+      .nav-links {
+        width: 100%;
+        max-width: 100%;
+        min-width: 0;
+        flex-wrap: nowrap;
+        overflow-x: auto;
+        overscroll-behavior-x: contain;
+        touch-action: pan-x pan-y pinch-zoom;
+        -webkit-overflow-scrolling: touch;
+        gap: 8px;
+        padding-bottom: 3px;
+        scrollbar-width: thin;
+      }
+
+      .navbar a {
+        background: rgba(255, 255, 255, 0.08);
+        padding: 0.34rem 0.65rem;
+        border-radius: 999px;
+        font-size: 0.82rem;
+        flex-shrink: 0;
+      }
+
+      .theme-btn {
+        padding: 0.34rem 0.68rem;
+        font-size: 0.8rem;
+        flex-shrink: 0;
+      }
+
+      .main {
+        padding: 0.8rem 0.65rem 1.8rem;
+      }
+
+      .card {
+        padding: 0.95rem 0.85rem;
+        margin-bottom: 0.95rem;
+        scroll-margin-top: 108px;
+      }
+
+      .card h2 {
+        font-size: 1.04rem;
+      }
+
+      .card > p {
+        font-size: 0.84rem;
+      }
+
+      .gauge-box {
+        padding: 0.75rem 0.82rem;
+        gap: 12px;
+      }
+
+      .status-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 8px;
+      }
+
+      .stat-box {
+        padding: 0.68rem 0.74rem;
+      }
+
+      .stat-value {
+        font-size: 0.93rem;
+      }
+
+      .sev-strip-dash {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 7px;
+      }
+
+      .two-col,
+      .three-col,
+      .mod-grid {
+        grid-template-columns: minmax(0, 1fr);
+      }
+
+      .result-box {
+        padding: 0.72rem;
+        font-size: 0.83rem;
+      }
+
+      .btn-row {
+        gap: 6px;
+      }
+
+      .btn-row .btn {
+        flex: 1 1 calc(50% - 6px);
+        text-align: center;
+        padding: 0.56rem 0.75rem;
+      }
+
+      .btn-row .btn.btn-small {
+        flex: 0 1 auto;
+        padding: 0.38rem 0.65rem;
+      }
+
+      .tabs {
+        width: 100%;
+        max-width: 100%;
+        min-width: 0;
+        flex-wrap: nowrap;
+        overflow-x: auto;
+        overscroll-behavior-x: contain;
+        touch-action: pan-x pan-y pinch-zoom;
+        -webkit-overflow-scrolling: touch;
+        padding-bottom: 4px;
+      }
+
+      .tab-btn {
+        flex-shrink: 0;
+        white-space: nowrap;
+      }
+
+      .finding-list {
+        list-style: none;
+        padding-left: 0;
+      }
+
+      .finding-list li {
+        background: var(--bg-white);
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        padding: 0.55rem 0.65rem;
+        margin-bottom: 0.55rem;
+        font-size: 0.81rem;
+      }
+
+      /* Tabelas responsivas em cartões empilhados no celular (evita quebra de layout após executar) */
+      .table-wrap {
+        overflow-x: visible;
+      }
+
+      table.data-tbl,
+      table.data-tbl thead,
+      table.data-tbl tbody,
+      table.data-tbl tr,
+      table.data-tbl td {
+        display: block;
+        width: 100%;
+      }
+
+      table.data-tbl {
+        background: transparent;
+      }
+
+      table.data-tbl thead {
+        display: none;
+      }
+
+      table.data-tbl tr {
+        background: var(--bg-white);
+        border: 1px solid var(--border);
+        border-left: 3px solid var(--primary);
+        border-radius: 6px;
+        margin-bottom: 0.65rem;
+        padding: 0.35rem 0.6rem;
+      }
+
+      table.data-tbl td {
+        border: none;
+        border-bottom: 1px dashed var(--border);
+        padding: 0.38rem 0;
+        display: flex;
+        flex-direction: column;
+        gap: 3px;
+        font-size: 0.81rem;
+      }
+
+      table.data-tbl td:last-child {
+        border-bottom: none;
+      }
+
+      table.data-tbl td::before {
+        content: attr(data-label);
+        font-size: 0.7rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.03em;
+        color: var(--text-secondary);
+      }
+
+      pre.code-out {
+        font-size: 0.74rem;
+        padding: 0.65rem;
+      }
+    }
+
+    @media (max-width: 380px) {
+      .status-grid {
+        grid-template-columns: minmax(0, 1fr);
+      }
+    }
+
+    body.dark-mode {
+      --bg-light: #0b1120;
+      --bg-white: #111827;
+      --bg-surface: #1e293b;
+      --text-dark: #f1f5f9;
+      --text-secondary: #94a3b8;
+      --border: #334155;
+      --input-border: #475569;
+      --primary: #14b8a6;
+      --primary-dark: #0d9488;
+    }
+
+    body.dark-mode .card h2,
+    body.dark-mode .result-box h4,
+    body.dark-mode details.fold-box summary {
+      color: #f8fafc;
+    }
+
+    body.dark-mode .gauge-box,
+    body.dark-mode .stat-box,
+    body.dark-mode .result-box,
+    body.dark-mode .tab-btn,
+    body.dark-mode .pill-btn {
+      background: var(--bg-surface);
+      color: var(--text-dark);
+      border-color: var(--border);
+    }
+
+    body.dark-mode .tab-btn.active {
+      background: var(--primary);
+      color: #ffffff;
+      border-color: var(--primary);
+    }
+
+    body.dark-mode .pill-btn.active {
+      background: var(--primary);
+      color: #ffffff;
+      border-color: var(--primary);
+    }
+
+    body.dark-mode .score-bar-track {
+      background: #334155;
+    }
+
+    body.dark-mode .mod-card,
+    body.dark-mode details.fold-box,
+    body.dark-mode table.data-tbl,
+    body.dark-mode .input-group input[type="text"],
+    body.dark-mode .input-group input[type="password"],
+    body.dark-mode .input-group input[type="number"],
+    body.dark-mode .input-group select,
+    body.dark-mode .input-group textarea {
+      background: #0f172a;
+      color: var(--text-dark);
+      border-color: var(--border);
+    }
+
+    body.dark-mode .finding-list li,
+    body.dark-mode table.data-tbl tr {
+      background: #0f172a;
+      border-color: var(--border);
+    }
+
+    body.dark-mode .diff-same {
+      color: #cbd5e1;
+    }
+
+    body.dark-mode .sev-mini-high { background: rgba(220, 38, 38, 0.2); color: #fca5a5; border-color: #ef4444; }
+    body.dark-mode .sev-mini-medium { background: rgba(234, 88, 12, 0.2); color: #fdba74; border-color: #f97316; }
+    body.dark-mode .sev-mini-low { background: rgba(217, 119, 6, 0.2); color: #fcd34d; border-color: #f59e0b; }
+    body.dark-mode .sev-mini-info { background: rgba(2, 132, 199, 0.22); color: #7dd3fc; border-color: #38bdf8; }
+
+    @media (max-width: 768px) {
+      body.dark-mode table.data-tbl {
+        background: transparent;
+      }
     }
   </style>
 </head>
@@ -387,11 +919,13 @@
     <div class="nav-links">
       <a href="#home">Início</a>
       <a href="#inspector">Inspetor HTTP</a>
+      <a href="#watchlist">Monitoramento</a>
       <a href="#inventory">Inventário</a>
       <a href="#workbench">Utilitários QA</a>
-      <a href="#modules" id="nav-modules-link">Módulos (30)</a>
-      <a href="#ai">IA Local</a>
+      <a href="#modules" id="nav-modules-link">Módulos (42)</a>
+      <a href="#ai">IA</a>
       <a href="#reports">Relatórios</a>
+      <button type="button" class="theme-btn" id="btn-theme-toggle" title="Alternar tema Claro/Escuro">Tema Escuro</button>
     </div>
   </nav>
 
@@ -399,54 +933,80 @@
     <div class="container">
       <!-- Dashboard -->
       <section id="home" class="card">
-        <h2>Aegis Web Console — Plataforma Modular de Diagnóstico HTTP, Hardening &amp; QA Defensivo</h2>
-        <p>Motor plugável com 30 módulos defensivos sob demanda (OWASP, CSP, CORS/COOP/COEP, TLS/Cifras, DNS/CAA/SPF/DMARC, Rate-Limit, OpenAPI e HTML Hygiene). Apenas os módulos ativados são executados em cada inspeção passiva.</p>
-        <div class="status-grid">
-          <div class="stat-box">
-            <div class="stat-label">Modo Operacional</div>
-            <div class="stat-value" id="current-mode">manual</div>
+        <h2>Aegis Web Console v3.0 — Plataforma Modular de Segurança Web Passiva, Compliance &amp; DevSecOps</h2>
+        <p>Motor plugável com 42 módulos defensivos sob demanda (OWASP Top 10:2021 / ASVS v4.0 / CWE, CSP, CORS/COOP/COEP, Cadeia TLS &amp; Chave, Redirecionamentos, DNS/CAA/SPF/DMARC/MTA-STS/DKIM/BIMI/NS, security.txt, robots.txt, Supply-Chain, LGPD/Trackers, GraphQL/PWA e OpenAPI). Inclui Watchlist contínua, Quality Gate CI/CD, CLI standalone, SARIF/CSV/PDF e IA multiprovidedor.</p>
+        <div class="home-overview-grid">
+          <div class="gauge-box">
+            <div id="dash-owasp-gauge" class="gauge-svg-wrap"></div>
+            <div class="gauge-meta">
+              <div class="stat-label">Saúde OWASP da Sessão</div>
+              <div class="stat-value" id="home-last-grade">—</div>
+              <div class="gauge-sub" id="dash-priority-summary">P1: 0 · P2: 0 · P3: 0</div>
+            </div>
           </div>
-          <div class="stat-box">
-            <div class="stat-label">IA Local</div>
-            <div class="stat-value" id="home-ai-status">Verificando...</div>
+          <div class="status-grid">
+            <div class="stat-box">
+              <div class="stat-label">Modo Operacional</div>
+              <div class="stat-value" id="current-mode">manual</div>
+            </div>
+            <div class="stat-box">
+              <div class="stat-label">Assistente IA</div>
+              <div class="stat-value" id="home-ai-status">Verificando...</div>
+            </div>
+            <div class="stat-box">
+              <div class="stat-label">Módulos Ativos</div>
+              <div class="stat-value" id="home-mod-count">0 / 0</div>
+            </div>
+            <div class="stat-box">
+              <div class="stat-label">Inspeções / Hosts / Watchlist</div>
+              <div class="stat-value" id="home-insp-count">0 / 0 / 0</div>
+            </div>
           </div>
-          <div class="stat-box">
-            <div class="stat-label">Módulos Ativos</div>
-            <div class="stat-value" id="home-mod-count">0 / 0</div>
-          </div>
-          <div class="stat-box">
-            <div class="stat-label">Inspeções / Hosts</div>
-            <div class="stat-value" id="home-insp-count">0 / 0</div>
-          </div>
-          <div class="stat-box">
-            <div class="stat-label">Última Nota OWASP</div>
-            <div class="stat-value" id="home-last-grade">—</div>
-          </div>
+        </div>
+        <div class="sev-strip-dash">
+          <div class="sev-mini sev-mini-high"><span>ALTA (P1)</span><strong id="dash-sev-high">0</strong></div>
+          <div class="sev-mini sev-mini-medium"><span>MÉDIA (P2)</span><strong id="dash-sev-medium">0</strong></div>
+          <div class="sev-mini sev-mini-low"><span>BAIXA (P3)</span><strong id="dash-sev-low">0</strong></div>
+          <div class="sev-mini sev-mini-info"><span>INFO</span><strong id="dash-sev-info">0</strong></div>
         </div>
       </section>
 
       <!-- Passive HTTP Request Inspector -->
       <section id="inspector" class="card">
-        <h2>Inspetor HTTP Passivo, TLS, DNS &amp; Snippets de Hardening</h2>
-        <div class="three-col">
-          <div class="input-group">
-            <label for="target-url">URL Alvo (HTTP/HTTPS):</label>
-            <input type="text" id="target-url" placeholder="https://example.com">
+        <h2>Inspetor HTTP Passivo, TLS, DNS, Redirecionamentos &amp; Auditoria em Lote</h2>
+        <div class="tabs" id="inspect-mode-tabs">
+          <button class="tab-btn active" type="button" data-inspect-tab="single">Alvo Único</button>
+          <button class="tab-btn" type="button" data-inspect-tab="batch">Auditoria em Lote (até 15 URLs)</button>
+        </div>
+
+        <div id="inspect-single-group">
+          <div class="three-col">
+            <div class="input-group">
+              <label for="target-url">URL Alvo (HTTP/HTTPS):</label>
+              <input type="text" id="target-url" placeholder="https://example.com">
+            </div>
+            <div class="input-group">
+              <label for="req-method">Método Passivo:</label>
+              <select id="req-method">
+                <option value="GET">GET (Completo)</option>
+                <option value="HEAD">HEAD (Cabeçalhos)</option>
+                <option value="OPTIONS">OPTIONS (Capacidades / CORS)</option>
+              </select>
+            </div>
+            <div class="input-group">
+              <label for="scan-mode">Modo de Execução:</label>
+              <select id="scan-mode">
+                <option value="manual">Manual (executa seus módulos ativos)</option>
+                <option value="ai-automation">IA Assistiva (seleciona módulos + resumo IA)</option>
+              </select>
+            </div>
           </div>
+        </div>
+
+        <div id="inspect-batch-group" style="display: none;">
           <div class="input-group">
-            <label for="req-method">Método Passivo:</label>
-            <select id="req-method">
-              <option value="GET">GET (Completo)</option>
-              <option value="HEAD">HEAD (Cabeçalhos)</option>
-              <option value="OPTIONS">OPTIONS (Capacidades / CORS)</option>
-            </select>
-          </div>
-          <div class="input-group">
-            <label for="scan-mode">Modo de Execução:</label>
-            <select id="scan-mode">
-              <option value="manual">Manual (executa seus módulos ativos)</option>
-              <option value="ai-automation">IA Assistiva (seleciona módulos + resumo Ollama)</option>
-            </select>
+            <label for="batch-urls">Lista de URLs Alvo (1 por linha, máximo 15 alvos):</label>
+            <textarea id="batch-urls" rows="4" placeholder="https://example.com&#10;https://api.example.com&#10;https://docs.example.com"></textarea>
           </div>
         </div>
 
@@ -462,14 +1022,58 @@
         </div>
 
         <div class="btn-row">
-          <button class="btn" id="btn-run-inspect" type="button">Executar Inspeção Passiva</button>
+          <button class="btn" id="btn-run-inspect" type="button">Executar teste</button>
+          <button class="btn" id="btn-run-batch" type="button" style="display: none;">Executar auditoria em lote</button>
           <button class="btn btn-secondary" id="btn-save-mode" type="button">Salvar Modo Padrão</button>
           <button class="btn btn-secondary" id="btn-refresh-history" type="button">Atualizar Histórico</button>
           <button class="btn btn-danger" id="btn-clear-history" type="button">Limpar Histórico</button>
         </div>
 
-        <div id="inspect-results" class="result-box">Configure a URL alvo e clique em "Executar Inspeção Passiva". Apenas os módulos ativos em #modules serão executados.</div>
+        <div id="inspect-results" class="result-box">Configure a URL alvo e clique em "Executar teste". Todos os módulos ativos em #modules serão executados no teste completo configurado.</div>
         <div id="inspect-history" class="result-box" style="display: none;"></div>
+      </section>
+
+      <!-- Continuous Passive Watchlist Monitor -->
+      <section id="watchlist" class="card">
+        <h2>Monitoramento Contínuo Passivo (Watchlist &amp; Alertas de Regressão)</h2>
+        <div class="three-col">
+          <div class="input-group">
+            <label for="wl-url">URL para Monitorar:</label>
+            <input type="text" id="wl-url" placeholder="https://example.com">
+          </div>
+          <div class="input-group">
+            <label for="wl-label">Rótulo (opcional):</label>
+            <input type="text" id="wl-label" placeholder="Portal Produção">
+          </div>
+          <div class="input-group">
+            <label for="wl-interval">Intervalo:</label>
+            <select id="wl-interval">
+              <option value="15">A cada 15 minutos</option>
+              <option value="30">A cada 30 minutos</option>
+              <option value="60" selected>A cada 1 hora</option>
+              <option value="360">A cada 6 horas</option>
+              <option value="1440">A cada 24 horas</option>
+            </select>
+          </div>
+        </div>
+        <div class="two-col">
+          <div class="input-group">
+            <label for="wl-min-score">Nota Mínima OWASP (alerta se ficar abaixo):</label>
+            <input type="number" id="wl-min-score" value="80" min="0" max="100">
+          </div>
+          <div class="input-group">
+            <label for="wl-webhook">Webhook de Alerta opcional (Slack / Discord / JSON):</label>
+            <input type="text" id="wl-webhook" placeholder="Ex.: https://hooks.slack.com/services/...">
+          </div>
+        </div>
+        <div class="btn-row">
+          <button class="btn" id="btn-wl-add" type="button">Adicionar à Watchlist</button>
+          <button class="btn btn-secondary" id="btn-wl-run" type="button">Executar Varredura Agora</button>
+          <button class="btn btn-danger" id="btn-wl-clear-alerts" type="button">Limpar Alertas</button>
+        </div>
+        <div id="wl-status" class="result-box" style="display: none;"></div>
+        <div id="wl-targets-box" class="result-box">Nenhum alvo cadastrado na Watchlist.</div>
+        <div id="wl-alerts-box" class="result-box" style="display: none;"></div>
       </section>
 
       <!-- Session Host Inventory -->
@@ -488,6 +1092,7 @@
           <button class="tab-btn" type="button" data-panel="panel-url">URL Parser</button>
           <button class="tab-btn" type="button" data-panel="panel-schema">OpenAPI &amp; JSON Schema</button>
           <button class="tab-btn" type="button" data-panel="panel-policy">Auditor &amp; Construtor CSP/Headers</button>
+          <button class="tab-btn" type="button" data-panel="panel-cicd">CI/CD Quality Gate &amp; GitHub Actions</button>
         </div>
 
         <div id="panel-decoder" class="tool-panel active">
@@ -592,6 +1197,8 @@
                   <option value="nginx">Nginx</option>
                   <option value="apache">Apache (mod_headers)</option>
                   <option value="express">Express.js</option>
+                  <option value="caddy">Caddyfile</option>
+                  <option value="cloudflare">Cloudflare Workers</option>
                   <option value="raw">Cabeçalhos HTTP Brutos</option>
                 </select>
               </div>
@@ -603,11 +1210,35 @@
             </div>
           </div>
         </div>
+
+        <div id="panel-cicd" class="tool-panel">
+          <div class="three-col">
+            <div class="input-group">
+              <label for="ci-url">URL Alvo no Pipeline:</label>
+              <input type="text" id="ci-url" placeholder="https://staging.example.com">
+            </div>
+            <div class="input-group">
+              <label for="ci-min-score">Nota Mínima OWASP:</label>
+              <input type="number" id="ci-min-score" value="80" min="0" max="100">
+            </div>
+            <div class="input-group">
+              <label for="ci-max-high">Máx. Achados ALTA (HIGH):</label>
+              <input type="number" id="ci-max-high" value="0" min="0" max="50">
+            </div>
+          </div>
+          <div class="btn-row">
+            <button class="btn btn-small" id="btn-ci-test" type="button">Testar Quality Gate Agora</button>
+            <button class="btn btn-secondary btn-small" id="btn-ci-yaml" type="button">Gerar GitHub Actions YAML</button>
+            <button class="btn btn-secondary btn-small" id="btn-ci-copy" type="button">Copiar YAML</button>
+          </div>
+          <div id="ci-gate-result" class="result-box" style="display: none;"></div>
+          <pre id="ci-yaml-output" class="code-out">Clique em "Gerar GitHub Actions YAML" para criar um pipeline DevSecOps com Aegis CLI + upload SARIF para GitHub Code Scanning.</pre>
+        </div>
       </section>
 
       <!-- Pluggable Defensive Modules Manager -->
       <section id="modules" class="card">
-        <h2 id="modules-heading">Gerenciador de Módulos &amp; Extensões Defensivas (30 Módulos Executáveis)</h2>
+        <h2 id="modules-heading">Gerenciador de Módulos &amp; Extensões Defensivas (42 Módulos Executáveis)</h2>
         <p>Cada módulo abaixo controla um verificador real no motor de inspeção passiva. Ative apenas o necessário ou aplique um preset de auditoria.</p>
 
         <div class="three-col">
@@ -616,9 +1247,9 @@
             <select id="mod-preset">
               <option value="">-- Selecionar preset --</option>
               <option value="essential">Essenciais OWASP &amp; Bancada (15 módulos)</option>
-              <option value="api-qa">API &amp; OpenAPI QA (15 módulos)</option>
-              <option value="compliance-full">Auditoria Completa OWASP + TLS + DNS (24 módulos)</option>
-              <option value="all-on">Ativar Todos (30 módulos)</option>
+              <option value="api-qa">API, OpenAPI &amp; GraphQL QA (17 módulos)</option>
+              <option value="compliance-full">Auditoria Completa OWASP + TLS + DNS + LGPD (36 módulos)</option>
+              <option value="all-on">Ativar Todos (42 módulos)</option>
               <option value="all-off">Desativar Todos</option>
             </select>
           </div>
@@ -641,6 +1272,7 @@
             <input type="text" id="mod-filter" placeholder="Nome ou descrição...">
           </div>
         </div>
+        <div id="mod-preset-status" class="result-box" style="display: none;"></div>
 
         <div class="input-group">
           <label for="mod-ai-context">Seleção Inteligente via IA (descreva sua aplicação para ativar o subconjunto ideal):</label>
@@ -654,14 +1286,16 @@
         <div id="modules-list" class="mod-grid">Carregando módulos...</div>
       </section>
 
-      <!-- Local AI Control -->
+      <!-- Multi-Provider Defensive AI Control -->
       <section id="ai" class="card">
-        <h2>Assistente Defensivo de IA Local (Ollama)</h2>
+        <h2>Assistente Defensivo de IA (Ollama Local / OpenAI / Anthropic)</h2>
         <div class="two-col">
           <div class="input-group">
             <label for="ai-type">Provedor:</label>
             <select id="ai-type">
               <option value="ollama">Ollama Local</option>
+              <option value="openai">OpenAI / Gateway Compatível</option>
+              <option value="anthropic">Anthropic Claude Oficial</option>
               <option value="none">Desativada</option>
             </select>
           </div>
@@ -671,9 +1305,20 @@
           </div>
         </div>
 
-        <div class="input-group" id="ai-endpoint-group">
-          <label for="ai-endpoint">Endpoint Ollama:</label>
-          <input type="text" id="ai-endpoint" value="http://127.0.0.1:11434">
+        <div class="two-col" id="ai-endpoint-group">
+          <div class="input-group">
+            <label for="ai-endpoint" id="ai-endpoint-label">Endpoint API:</label>
+            <input type="text" id="ai-endpoint" value="http://127.0.0.1:11434">
+          </div>
+          <div class="input-group" id="ai-key-group" style="display: none;">
+            <label for="ai-api-key">Chave de API (armazenada em arquivo local seguro <code>chmod 600</code>): <span id="ai-key-badge" class="badge badge-info" style="display: none;">Salva</span></label>
+            <input type="password" id="ai-api-key" placeholder="Deixe vazio para manter a chave atual ou usar variável de ambiente">
+          </div>
+        </div>
+
+        <div id="ollama-models-bar" class="btn-row" style="margin-bottom: 0.75rem;">
+          <button class="btn btn-secondary btn-small" id="btn-detect-ollama" type="button">Detectar Modelos Ollama</button>
+          <span id="ollama-models-list" style="display:inline-flex; gap:6px; flex-wrap:wrap; align-items:center;"></span>
         </div>
 
         <div class="input-group">
@@ -716,9 +1361,11 @@
           <div class="input-group">
             <label for="report-type">Formato de Exportação:</label>
             <select id="report-type">
-              <option value="pdf">PDF 1.4 (multipágina com OWASP, TLS, DNS e hardening)</option>
-              <option value="html">HTML Estilizado (pronto para impressão)</option>
+              <option value="pdf">PDF 1.4 Executivo (capa, KPIs, OWASP Top 10, CWE e hardening)</option>
+              <option value="html">HTML Estilizado (pronto para impressão A4)</option>
               <option value="md">Markdown (.md para documentação/PRs)</option>
+              <option value="sarif">SARIF 2.1.0 (GitHub Code Scanning / Azure DevOps / CI-CD)</option>
+              <option value="csv">CSV Planilha (Excel / LibreOffice / Jira / GRC)</option>
               <option value="json">JSON Completo (automação CI/CD)</option>
             </select>
           </div>
@@ -788,25 +1435,151 @@
       }
     }
 
-    function toggleEndpointVisibility() {
+    function toggleEndpointVisibility(isUserChange = false) {
       const type = document.getElementById('ai-type').value;
-      document.getElementById('ai-endpoint-group').style.display = type === 'ollama' ? 'block' : 'none';
+      const epGroup = document.getElementById('ai-endpoint-group');
+      const keyGroup = document.getElementById('ai-key-group');
+      const ollamaBar = document.getElementById('ollama-models-bar');
+      const epInput = document.getElementById('ai-endpoint');
+      const modelInput = document.getElementById('ai-model');
+      const epLabel = document.getElementById('ai-endpoint-label');
+
+      epGroup.style.display = type === 'none' ? 'none' : 'grid';
+      keyGroup.style.display = (type === 'openai' || type === 'anthropic') ? 'block' : 'none';
+      ollamaBar.style.display = type === 'ollama' ? 'flex' : 'none';
+
+      if (type === 'ollama') {
+        epLabel.textContent = 'Endpoint Ollama:';
+        if (isUserChange) {
+          epInput.value = 'http://127.0.0.1:11434';
+          if (!modelInput.value || /^(gpt-|claude-)/i.test(modelInput.value)) modelInput.value = 'deepseek-v4-heretic:9b';
+        }
+      } else if (type === 'openai') {
+        epLabel.textContent = 'Endpoint OpenAI / Compatível:';
+        if (isUserChange) {
+          epInput.value = 'https://api.openai.com/v1';
+          if (!modelInput.value || /deepseek|granite|qwen|claude/i.test(modelInput.value)) modelInput.value = 'gpt-4.1-mini';
+        }
+      } else if (type === 'anthropic') {
+        epLabel.textContent = 'Endpoint Anthropic:';
+        if (isUserChange) {
+          epInput.value = 'https://api.anthropic.com';
+          if (!modelInput.value || !/^claude-/i.test(modelInput.value)) modelInput.value = 'claude-sonnet-4-6';
+        }
+      }
+    }
+
+    function renderSvgGauge(containerId, score, grade) {
+      const el = document.getElementById(containerId);
+      if (!el) return;
+      clearEl(el);
+      const ns = 'http://www.w3.org/2000/svg';
+      const svg = document.createElementNS(ns, 'svg');
+      svg.setAttribute('width', '68');
+      svg.setAttribute('height', '68');
+      svg.setAttribute('viewBox', '0 0 68 68');
+      const r = 27;
+      const circ = 2 * Math.PI * r;
+      const pct = score !== null && score !== undefined ? Math.max(0, Math.min(100, Number(score))) : 0;
+      const color = score === null || score === undefined ? '#64748b' : (pct >= 80 ? '#16a34a' : (pct >= 60 ? '#d97706' : '#dc2626'));
+
+      const bg = document.createElementNS(ns, 'circle');
+      bg.setAttribute('cx', '34');
+      bg.setAttribute('cy', '34');
+      bg.setAttribute('r', String(r));
+      bg.setAttribute('fill', 'none');
+      bg.setAttribute('stroke', '#94a3b8');
+      bg.setAttribute('stroke-opacity', '0.28');
+      bg.setAttribute('stroke-width', '7');
+      svg.appendChild(bg);
+
+      const fg = document.createElementNS(ns, 'circle');
+      fg.setAttribute('cx', '34');
+      fg.setAttribute('cy', '34');
+      fg.setAttribute('r', String(r));
+      fg.setAttribute('fill', 'none');
+      fg.setAttribute('stroke', color);
+      fg.setAttribute('stroke-width', '7');
+      fg.setAttribute('stroke-linecap', 'round');
+      fg.setAttribute('stroke-dasharray', `${(circ * pct / 100).toFixed(1)} ${circ.toFixed(1)}`);
+      fg.setAttribute('transform', 'rotate(-90 34 34)');
+      svg.appendChild(fg);
+
+      const txt = document.createElementNS(ns, 'text');
+      txt.setAttribute('x', '34');
+      txt.setAttribute('y', '39');
+      txt.setAttribute('text-anchor', 'middle');
+      txt.setAttribute('font-size', '16');
+      txt.setAttribute('font-weight', '700');
+      txt.setAttribute('fill', color);
+      txt.textContent = grade || '—';
+      svg.appendChild(txt);
+      el.appendChild(svg);
+    }
+
+    function createSparklineSvg(trend) {
+      const ns = 'http://www.w3.org/2000/svg';
+      const svg = document.createElementNS(ns, 'svg');
+      svg.setAttribute('width', '96');
+      svg.setAttribute('height', '26');
+      svg.setAttribute('viewBox', '0 0 96 26');
+      svg.setAttribute('class', 'sparkline');
+      if (!Array.isArray(trend) || trend.length === 0) return svg;
+      const pts = trend.map((p, i) => {
+        const x = trend.length === 1 ? 48 : (4 + (i * 88) / (trend.length - 1));
+        const y = 22 - (Math.max(0, Math.min(100, Number(p.score || 0))) * 18) / 100;
+        return `${x.toFixed(1)},${y.toFixed(1)}`;
+      }).join(' ');
+      const lastScore = Number(trend[trend.length - 1].score || 0);
+      const col = lastScore >= 80 ? '#16a34a' : (lastScore >= 60 ? '#d97706' : '#dc2626');
+      if (trend.length > 1) {
+        const poly = document.createElementNS(ns, 'polyline');
+        poly.setAttribute('fill', 'none');
+        poly.setAttribute('stroke', col);
+        poly.setAttribute('stroke-width', '2');
+        poly.setAttribute('points', pts);
+        svg.appendChild(poly);
+      }
+      const lastPt = pts.split(' ').pop().split(',');
+      const dot = document.createElementNS(ns, 'circle');
+      dot.setAttribute('cx', lastPt[0]);
+      dot.setAttribute('cy', lastPt[1]);
+      dot.setAttribute('r', '3');
+      dot.setAttribute('fill', col);
+      svg.appendChild(dot);
+      return svg;
     }
 
     async function refreshStatus() {
       try {
-        const res = await fetch('/api/status');
+        const res = await fetch('/api/status', { cache: 'no-store' });
         const d = await res.json();
         document.getElementById('current-mode').textContent = d.mode || 'manual';
         document.getElementById('scan-mode').value = d.mode || 'manual';
+        const provLabel = d.ai_config ? d.ai_config.ai_type.toUpperCase() : 'IA';
         document.getElementById('home-ai-status').textContent = d.ai_active
-          ? `Ativa (${d.ai_config.ai_model})`
+          ? `${provLabel} (${d.ai_config.ai_model})`
           : 'Desativada';
         document.getElementById('home-mod-count').textContent = `${d.modules_active} / ${d.modules_total}`;
-        document.getElementById('home-insp-count').textContent = `${d.inspections_count || 0} / ${d.hosts_count || 0}`;
-        document.getElementById('home-last-grade').textContent = d.last_grade
-          ? `${d.last_grade} (${d.last_score}/100)`
-          : '—';
+        const wlCount = d.watchlist_summary ? d.watchlist_summary.total_targets : 0;
+        document.getElementById('home-insp-count').textContent = `${d.inspections_count || 0} / ${d.hosts_count || 0} / ${wlCount}`;
+        if (d.last_grade) {
+          const avgTxt = d.average_score !== null && d.average_score !== undefined ? ` · Média ${d.overall_grade} (${d.average_score})` : '';
+          document.getElementById('home-last-grade').textContent = `${d.last_grade} (${d.last_score})${avgTxt}`;
+        } else {
+          document.getElementById('home-last-grade').textContent = '—';
+        }
+        renderSvgGauge('dash-owasp-gauge', d.average_score !== null && d.average_score !== undefined ? d.average_score : d.last_score, d.overall_grade !== '—' ? d.overall_grade : d.last_grade);
+        if (d.compliance_summary && d.compliance_summary.priority_counts) {
+          const pc = d.compliance_summary.priority_counts;
+          document.getElementById('dash-priority-summary').textContent = `Prioridades: P1: ${pc.P1} · P2: ${pc.P2} · P3: ${pc.P3}`;
+        }
+        if (d.severity_counts) {
+          document.getElementById('dash-sev-high').textContent = String(d.severity_counts.high || 0);
+          document.getElementById('dash-sev-medium').textContent = String(d.severity_counts.medium || 0);
+          document.getElementById('dash-sev-low').textContent = String(d.severity_counts.low || 0);
+          document.getElementById('dash-sev-info').textContent = String(d.severity_counts.info || 0);
+        }
         document.getElementById('nav-modules-link').textContent = `Módulos (${d.modules_total})`;
         document.getElementById('modules-heading').textContent = `Gerenciador de Módulos & Extensões Defensivas (${d.modules_total} Módulos Executáveis)`;
 
@@ -814,7 +1587,9 @@
           document.getElementById('ai-type').value = d.ai_config.ai_type;
           document.getElementById('ai-endpoint').value = d.ai_config.ai_endpoint;
           document.getElementById('ai-model').value = d.ai_config.ai_model;
-          toggleEndpointVisibility();
+          const keyBadge = document.getElementById('ai-key-badge');
+          keyBadge.style.display = d.ai_config.api_key_set ? 'inline-block' : 'none';
+          toggleEndpointVisibility(false);
         }
       } catch {
         document.getElementById('home-ai-status').textContent = 'Erro de status';
@@ -824,7 +1599,7 @@
     async function loadModules() {
       const container = document.getElementById('modules-list');
       try {
-        const res = await fetch('/api/modules');
+        const res = await fetch('/api/modules', { cache: 'no-store' });
         const data = await res.json();
         allModules = data.installed || [];
         renderModules();
@@ -881,6 +1656,8 @@
               body: JSON.stringify({ mode: 'toggle' })
             });
             if (resp.ok) {
+              document.getElementById('mod-preset').value = '';
+              document.getElementById('mod-preset-status').style.display = 'none';
               await loadModules();
               await refreshStatus();
             }
@@ -900,8 +1677,15 @@
 
       const topRow = createEl('div', { className: 'mod-header' });
       topRow.appendChild(createEl('strong', null, `[${data.method} ${data.status_code}] ${data.target} (${data.duration_ms}ms)`));
+      const badgeWrap = createEl('div', { className: 'btn-row' });
       const gradeCls = data.owasp_score >= 80 ? 'badge badge-active' : (data.owasp_score >= 60 ? 'badge badge-inactive' : 'badge badge-error');
-      topRow.appendChild(createEl('span', { className: gradeCls }, `Nota OWASP: ${data.owasp_grade} (${data.owasp_score}/100)`));
+      badgeWrap.appendChild(createEl('span', { className: gradeCls }, `Nota OWASP: ${data.owasp_grade} (${data.owasp_score}/100)`));
+      if (data.delta) {
+        const sign = data.delta.score_delta >= 0 ? '+' : '';
+        const dCls = data.delta.score_delta > 0 ? 'badge badge-active' : (data.delta.score_delta < 0 ? 'badge badge-error' : 'badge badge-info');
+        badgeWrap.appendChild(createEl('span', { className: dCls }, `Delta: ${sign}${data.delta.score_delta} pts (Resolvidos: ${data.delta.resolved_count} · Novos: ${data.delta.new_count})`));
+      }
+      topRow.appendChild(badgeWrap);
       box.appendChild(topRow);
 
       const track = createEl('div', { className: 'score-bar-track' });
@@ -913,6 +1697,11 @@
 
       box.appendChild(createEl('p', null, `Módulos executados: ${data.executed_modules_count} | Ignorados (inativos): ${data.skipped_modules_count} | Observações: ${data.findings_count}`));
 
+      if (Array.isArray(data.redirect_chain) && data.redirect_chain.length > 1) {
+        const trail = data.redirect_chain.map(h => `${h.statusCode} (${h.host})`).join(' -> ');
+        box.appendChild(createEl('p', null, `Redirecionamentos (${data.redirect_chain.length - 1} salto(s)): ${trail}`));
+      }
+
       if (Array.isArray(data.activated_modules) && data.activated_modules.length > 0) {
         box.appendChild(createEl('p', null, `Módulos selecionados pela IA (${data.activated_modules.length}): ${data.activated_modules.join(', ')}`));
       }
@@ -922,11 +1711,15 @@
       }
 
       if (data.dns_posture && !data.dns_posture.skipped) {
-        box.appendChild(createEl('p', null, `Postura DNS (${data.dns_posture.domain}): CAA=${data.dns_posture.caa.length ? 'OK' : 'ausente'} · SPF=${data.dns_posture.spf ? 'OK' : 'ausente'} · DMARC=${data.dns_posture.dmarc ? 'OK' : 'ausente'}`));
+        const adv = data.dns_posture.advancedChecked
+          ? ` · MX=${(data.dns_posture.mx || []).length} · MTA-STS=${data.dns_posture.mtaSts ? 'OK' : 'ausente'}`
+          : '';
+        box.appendChild(createEl('p', null, `Postura DNS (${data.dns_posture.domain}): CAA=${data.dns_posture.caa.length ? 'OK' : 'ausente'} · SPF=${data.dns_posture.spf ? 'OK' : 'ausente'} · DMARC=${data.dns_posture.dmarc ? 'OK' : 'ausente'}${adv}`));
       }
 
       if (Array.isArray(data.module_results) && data.module_results.length > 0) {
         box.appendChild(createEl('h4', null, 'Resultado por Módulo Ativo:'));
+        const tblWrap = createEl('div', { className: 'table-wrap' });
         const tbl = createEl('table', { className: 'data-tbl' });
         const thead = createEl('thead');
         const hr = createEl('tr');
@@ -937,38 +1730,99 @@
         const tbody = createEl('tbody');
         for (const m of data.module_results) {
           const tr = createEl('tr');
-          tr.appendChild(createEl('td', null, `${m.module_name} (${m.module_id})`));
-          const stCell = createEl('td');
+          tr.appendChild(createEl('td', { 'data-label': 'Módulo' }, `${m.module_name} (${m.module_id})`));
+          const stCell = createEl('td', { 'data-label': 'Status' });
           const cls = m.status === 'pass' ? 'badge badge-active' : (m.status === 'warn' ? 'badge badge-inactive' : 'badge badge-info');
           stCell.appendChild(createEl('span', { className: cls }, m.status.toUpperCase()));
           tr.appendChild(stCell);
-          tr.appendChild(createEl('td', null, m.summary));
-          tr.appendChild(createEl('td', null, String(m.findings_count)));
+          tr.appendChild(createEl('td', { 'data-label': 'Resumo' }, m.summary));
+          tr.appendChild(createEl('td', { 'data-label': 'Achados' }, String(m.findings_count)));
           tbody.appendChild(tr);
         }
         tbl.appendChild(tbody);
-        box.appendChild(tbl);
+        tblWrap.appendChild(tbl);
+        box.appendChild(tblWrap);
       }
 
       if (Array.isArray(data.findings) && data.findings.length > 0) {
-        box.appendChild(createEl('h4', null, 'Observações & Recomendações Defensivas:'));
+        box.appendChild(createEl('h4', null, `Observações & Recomendações Defensivas (${data.findings.length}):`));
+        const pillsRow = createEl('div', { className: 'filter-pills' });
         const ul = createEl('ul', { className: 'finding-list' });
+        const renderFilteredFindings = (sevFilter) => {
+          clearEl(ul);
+          const subset = sevFilter === 'all'
+            ? data.findings
+            : data.findings.filter(f => String(f.severity || 'info').toLowerCase() === sevFilter);
+          if (subset.length === 0) {
+            ul.appendChild(createEl('li', null, 'Nenhum achado nesta severidade.'));
+            return;
+          }
+          for (const f of subset) {
+            const li = createEl('li');
+            li.appendChild(createEl('span', { className: sevBadgeClass(f.severity) }, `${f.priority || 'P3'} · ${f.severity.toUpperCase()}`));
+            if (f.cwe) {
+              li.appendChild(document.createTextNode(' '));
+              li.appendChild(createEl('span', { className: 'badge badge-info' }, f.cwe));
+            }
+            li.appendChild(document.createTextNode(` [${f.module_id}] ${f.item} — ${f.recommendation}${f.owasp_top10 ? ` (${f.owasp_top10})` : ''}`));
+            ul.appendChild(li);
+          }
+        };
+        const counts = { high: 0, medium: 0, low: 0, info: 0 };
         for (const f of data.findings) {
-          const li = createEl('li');
-          li.appendChild(createEl('span', { className: sevBadgeClass(f.severity) }, f.severity.toUpperCase()));
-          li.appendChild(document.createTextNode(` [${f.module_id}] ${f.item} — ${f.recommendation}`));
-          ul.appendChild(li);
+          const s = String(f.severity || 'info').toLowerCase();
+          counts[s] = (counts[s] || 0) + 1;
         }
+        [['all', `Todos (${data.findings.length})`], ['high', `Alta (${counts.high})`], ['medium', `Média (${counts.medium})`], ['low', `Baixa (${counts.low})`], ['info', `Info (${counts.info})`]].forEach(([key, label], idx) => {
+          const pb = createEl('button', { className: idx === 0 ? 'pill-btn active' : 'pill-btn', type: 'button' }, label);
+          pb.addEventListener('click', () => {
+            pillsRow.querySelectorAll('.pill-btn').forEach(b => b.classList.remove('active'));
+            pb.classList.add('active');
+            renderFilteredFindings(key);
+          });
+          pillsRow.appendChild(pb);
+        });
+        box.appendChild(pillsRow);
+        renderFilteredFindings('all');
         box.appendChild(ul);
+      }
+
+      if (data.compliance_matrix && Array.isArray(data.compliance_matrix.owasp_top10) && data.compliance_matrix.owasp_top10.length > 0) {
+        const foldComp = createEl('details', { className: 'fold-box' });
+        const pc = data.compliance_matrix.priority_counts || { P1: 0, P2: 0, P3: 0 };
+        foldComp.appendChild(createEl('summary', null, `Matriz OWASP Top 10:2021 & CWE (P1: ${pc.P1} · P2: ${pc.P2} · P3: ${pc.P3})`));
+        const cWrap = createEl('div', { className: 'table-wrap' });
+        const cTbl = createEl('table', { className: 'data-tbl' });
+        const cHead = createEl('thead');
+        const cHr = createEl('tr');
+        ['Categoria OWASP Top 10:2021', 'CWEs', 'Alta', 'Média', 'Baixa', 'Total'].forEach(t => cHr.appendChild(createEl('th', null, t)));
+        cHead.appendChild(cHr);
+        cTbl.appendChild(cHead);
+        const cBody = createEl('tbody');
+        for (const row of data.compliance_matrix.owasp_top10) {
+          const tr = createEl('tr');
+          tr.appendChild(createEl('td', { 'data-label': 'OWASP Top 10' }, row.category));
+          tr.appendChild(createEl('td', { 'data-label': 'CWEs' }, (row.cwes || []).join(', ')));
+          tr.appendChild(createEl('td', { 'data-label': 'Alta' }, String(row.high)));
+          tr.appendChild(createEl('td', { 'data-label': 'Média' }, String(row.medium)));
+          tr.appendChild(createEl('td', { 'data-label': 'Baixa' }, String(row.low)));
+          tr.appendChild(createEl('td', { 'data-label': 'Total' }, String(row.total)));
+          cBody.appendChild(tr);
+        }
+        cTbl.appendChild(cBody);
+        cWrap.appendChild(cTbl);
+        foldComp.appendChild(cWrap);
+        box.appendChild(foldComp);
       }
 
       if (data.hardening_snippets && data.hardening_snippets.missing_count > 0) {
         const fold = createEl('details', { className: 'fold-box' });
-        fold.appendChild(createEl('summary', null, `Snippets de Hardening Prontos (${data.hardening_snippets.missing_count} cabeçalhos sugeridos: Nginx / Apache / Express)`));
+        fold.appendChild(createEl('summary', null, `Snippets de Hardening Prontos (${data.hardening_snippets.missing_count} cabeçalhos sugeridos: Nginx / Apache / Express / Caddy / Cloudflare)`));
         const swRow = createEl('div', { className: 'btn-row', style: 'margin-top:0.6rem;' });
         const pre = createEl('pre', { className: 'code-out' }, data.hardening_snippets.nginx);
         let activeSnippet = data.hardening_snippets.nginx;
-        [['Nginx', 'nginx'], ['Apache', 'apache'], ['Express.js', 'express']].forEach(([label, key]) => {
+        [['Nginx', 'nginx'], ['Apache', 'apache'], ['Express.js', 'express'], ['Caddy', 'caddy'], ['Cloudflare', 'cloudflare']].forEach(([label, key]) => {
+          if (!data.hardening_snippets[key]) return;
           const b = createEl('button', { className: 'btn btn-secondary btn-small', type: 'button' }, label);
           b.addEventListener('click', () => {
             activeSnippet = data.hardening_snippets[key] || '';
@@ -1019,7 +1873,7 @@
 
       btn.disabled = true;
       clearEl(box);
-      box.appendChild(createEl('p', null, `Executando inspeção passiva (${method}) em ${target}...`));
+      box.appendChild(createEl('p', null, `Executando teste (${method}) em ${target} com os módulos ativos configurados...`));
 
       try {
         const res = await fetch('/api/inspect/run', {
@@ -1048,10 +1902,89 @@
       }
     }
 
+    async function runBatchInspection() {
+      const raw = document.getElementById('batch-urls').value.trim();
+      const method = document.getElementById('req-method').value;
+      const mode = document.getElementById('scan-mode').value;
+      const origin = document.getElementById('hdr-origin').value.trim();
+      const accept = document.getElementById('hdr-accept').value.trim();
+      const box = document.getElementById('inspect-results');
+      const btn = document.getElementById('btn-run-batch');
+
+      const targets = raw.split(/\r?\n|,/).map(s => s.trim()).filter(Boolean);
+      if (targets.length === 0) {
+        clearEl(box);
+        box.appendChild(createEl('span', { className: 'badge badge-error' }, 'Informe ao menos uma URL na lista de auditoria em lote.'));
+        return;
+      }
+
+      const custom_headers = {};
+      if (origin) custom_headers.origin = origin;
+      if (accept) custom_headers.accept = accept;
+
+      btn.disabled = true;
+      clearEl(box);
+      box.appendChild(createEl('p', null, `Executando auditoria em lote para ${Math.min(targets.length, 15)} alvo(s)...`));
+
+      try {
+        const res = await fetch('/api/inspect/batch', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ targets, method, mode, custom_headers })
+        });
+        const data = await res.json();
+        clearEl(box);
+        if (!res.ok) {
+          box.appendChild(createEl('span', { className: 'badge badge-error' }, data.error || 'Erro na auditoria em lote.'));
+          return;
+        }
+        box.appendChild(createEl('strong', null, `Auditoria em Lote concluída — ${data.completed}/${data.total} concluído(s), ${data.failed} falha(s)${data.average_score !== null ? ` · Média OWASP: ${data.average_score}/100` : ''}`));
+        const tblWrap = createEl('div', { className: 'table-wrap' });
+        const tbl = createEl('table', { className: 'data-tbl' });
+        const thead = createEl('thead');
+        const hr = createEl('tr');
+        ['Alvo', 'Status', 'Nota OWASP', 'Achados', 'Ação'].forEach(t => hr.appendChild(createEl('th', null, t)));
+        thead.appendChild(hr);
+        tbl.appendChild(thead);
+
+        const tbody = createEl('tbody');
+        for (const item of (data.results || [])) {
+          const tr = createEl('tr');
+          tr.appendChild(createEl('td', { 'data-label': 'Alvo' }, item.target));
+          tr.appendChild(createEl('td', { 'data-label': 'Status' }, item.success ? `HTTP ${item.status_code} (${item.duration_ms}ms)` : item.error));
+          tr.appendChild(createEl('td', { 'data-label': 'Nota OWASP' }, item.success ? `${item.owasp_grade} (${item.owasp_score}/100)` : '—'));
+          tr.appendChild(createEl('td', { 'data-label': 'Achados' }, item.success ? String(item.findings_count) : '—'));
+          const actTd = createEl('td', { 'data-label': 'Ação' });
+          if (item.success && item.record) {
+            const bView = createEl('button', { className: 'btn btn-small', type: 'button' }, 'Detalhar');
+            bView.addEventListener('click', () => renderInspectionDetail(item.record));
+            actTd.appendChild(bView);
+          } else {
+            actTd.appendChild(createEl('span', { className: 'badge badge-error' }, 'Erro'));
+          }
+          tr.appendChild(actTd);
+          tbody.appendChild(tr);
+        }
+        tbl.appendChild(tbody);
+        tblWrap.appendChild(tbl);
+        box.appendChild(tblWrap);
+
+        await loadModules();
+        await refreshStatus();
+        await loadHistory();
+        await loadInventory();
+      } catch (err) {
+        clearEl(box);
+        box.appendChild(createEl('span', { className: 'badge badge-error' }, `Erro: ${err.message}`));
+      } finally {
+        btn.disabled = false;
+      }
+    }
+
     async function loadHistory() {
       const box = document.getElementById('inspect-history');
       try {
-        const res = await fetch('/api/inspect/history');
+        const res = await fetch('/api/inspect/history', { cache: 'no-store' });
         const data = await res.json();
         sessionHistory = data.history || [];
         if (sessionHistory.length === 0) {
@@ -1062,6 +1995,7 @@
         clearEl(box);
         box.appendChild(createEl('strong', null, `Histórico da Sessão (${sessionHistory.length}) — clique para reabrir ou enviar ao Comparer:`));
 
+        const tblWrap = createEl('div', { className: 'table-wrap' });
         const tbl = createEl('table', { className: 'data-tbl' });
         const thead = createEl('thead');
         const hr = createEl('tr');
@@ -1072,12 +2006,12 @@
         const tbody = createEl('tbody');
         for (const item of sessionHistory) {
           const tr = createEl('tr');
-          tr.appendChild(createEl('td', null, `${item.method} ${item.status_code} (${item.duration_ms}ms)`));
-          tr.appendChild(createEl('td', null, item.target));
-          tr.appendChild(createEl('td', null, `${item.owasp_grade} (${item.owasp_score}/100)`));
-          tr.appendChild(createEl('td', null, `${item.executed_modules_count}`));
+          tr.appendChild(createEl('td', { 'data-label': 'Método / HTTP' }, `${item.method} ${item.status_code} (${item.duration_ms}ms)`));
+          tr.appendChild(createEl('td', { 'data-label': 'Alvo' }, item.target));
+          tr.appendChild(createEl('td', { 'data-label': 'Nota OWASP' }, `${item.owasp_grade} (${item.owasp_score}/100)`));
+          tr.appendChild(createEl('td', { 'data-label': 'Módulos' }, `${item.executed_modules_count}`));
 
-          const actTd = createEl('td');
+          const actTd = createEl('td', { 'data-label': 'Ações' });
           const rowBtns = createEl('div', { className: 'btn-row' });
 
           const bView = createEl('button', { className: 'btn btn-small', type: 'button' }, 'Ver');
@@ -1106,7 +2040,8 @@
           tbody.appendChild(tr);
         }
         tbl.appendChild(tbody);
-        box.appendChild(tbl);
+        tblWrap.appendChild(tbl);
+        box.appendChild(tblWrap);
       } catch {
         box.style.display = 'none';
       }
@@ -1115,7 +2050,7 @@
     async function loadInventory() {
       const box = document.getElementById('inventory-box');
       try {
-        const res = await fetch('/api/inventory');
+        const res = await fetch('/api/inventory', { cache: 'no-store' });
         const data = await res.json();
         const hosts = data.hosts || [];
         clearEl(box);
@@ -1123,6 +2058,7 @@
           box.textContent = 'Nenhum host inspecionado ainda nesta sessão.';
           return;
         }
+        const tblWrap = createEl('div', { className: 'table-wrap' });
         const tbl = createEl('table', { className: 'data-tbl' });
         const thead = createEl('thead');
         const hr = createEl('tr');
@@ -1133,16 +2069,17 @@
         const tbody = createEl('tbody');
         for (const h of hosts) {
           const tr = createEl('tr');
-          tr.appendChild(createEl('td', null, h.host));
-          tr.appendChild(createEl('td', null, h.tls_protocol ? `${h.protocol} (${h.tls_protocol})` : h.protocol));
-          tr.appendChild(createEl('td', null, h.dns_summary || '—'));
-          tr.appendChild(createEl('td', null, String(h.last_status)));
-          tr.appendChild(createEl('td', null, `${h.owasp_grade} (${h.owasp_score}/100)`));
-          tr.appendChild(createEl('td', null, String(h.findings_count)));
+          tr.appendChild(createEl('td', { 'data-label': 'Host' }, h.host));
+          tr.appendChild(createEl('td', { 'data-label': 'Protocolo / TLS' }, h.tls_protocol ? `${h.protocol} (${h.tls_protocol})` : h.protocol));
+          tr.appendChild(createEl('td', { 'data-label': 'Postura DNS' }, h.dns_summary || '—'));
+          tr.appendChild(createEl('td', { 'data-label': 'Último HTTP' }, String(h.last_status)));
+          tr.appendChild(createEl('td', { 'data-label': 'Nota OWASP' }, `${h.owasp_grade} (${h.owasp_score}/100)`));
+          tr.appendChild(createEl('td', { 'data-label': 'Observações' }, String(h.findings_count)));
           tbody.appendChild(tr);
         }
         tbl.appendChild(tbody);
-        box.appendChild(tbl);
+        tblWrap.appendChild(tbl);
+        box.appendChild(tblWrap);
       } catch {
         box.textContent = 'Erro ao carregar inventário.';
       }
@@ -1372,10 +2309,259 @@
           '  next();',
           '});'
         ].join('\n');
+      } else if (fmt === 'caddy') {
+        text = ['header {', '  -Server', '  -X-Powered-By', ...headers.map(([k, v]) => `  ${k} "${v}"`), '}'].join('\n');
+      } else if (fmt === 'cloudflare') {
+        text = [
+          'export default {',
+          '  async fetch(request) {',
+          '    const response = await fetch(request);',
+          '    const headers = new Headers(response.headers);',
+          "    headers.delete('Server');",
+          ...headers.map(([k, v]) => `    headers.set('${k}', ${JSON.stringify(v)});`),
+          '    return new Response(response.body, { status: response.status, headers });',
+          '  }',
+          '};'
+        ].join('\n');
       } else {
         text = headers.map(([k, v]) => `${k}: ${v}`).join('\n');
       }
       document.getElementById('pol-output').textContent = text;
+    }
+
+    async function loadWatchlist() {
+      const box = document.getElementById('wl-targets-box');
+      const alertBox = document.getElementById('wl-alerts-box');
+      try {
+        const res = await fetch('/api/watchlist', { cache: 'no-store' });
+        const data = await res.json();
+        const targets = data.targets || [];
+        const alerts = data.alerts || [];
+        clearEl(box);
+
+        if (targets.length === 0) {
+          box.textContent = 'Nenhum alvo cadastrado na Watchlist. Adicione uma URL acima para monitoramento periódico passivo.';
+        } else {
+          const tblWrap = createEl('div', { className: 'table-wrap' });
+          const tbl = createEl('table', { className: 'data-tbl' });
+          const thead = createEl('thead');
+          const hr = createEl('tr');
+          ['Rótulo / Alvo', 'Intervalo / Mín.', 'Última Nota', 'Tendência', 'Ações'].forEach(t => hr.appendChild(createEl('th', null, t)));
+          thead.appendChild(hr);
+          tbl.appendChild(thead);
+          const tbody = createEl('tbody');
+
+          for (const t of targets) {
+            const tr = createEl('tr');
+            tr.appendChild(createEl('td', { 'data-label': 'Alvo' }, `${t.label} — ${t.url}`));
+            tr.appendChild(createEl('td', { 'data-label': 'Política' }, `${t.interval_minutes}m · >= ${t.min_score}/100`));
+            const scoreTd = createEl('td', { 'data-label': 'Última Nota' });
+            if (t.last_error) {
+              scoreTd.appendChild(createEl('span', { className: 'badge badge-error' }, `Erro: ${t.last_error.slice(0, 60)}`));
+            } else if (t.last_grade) {
+              const cls = t.last_score >= t.min_score ? 'badge badge-active' : 'badge badge-error';
+              scoreTd.appendChild(createEl('span', { className: cls }, `${t.last_grade} (${t.last_score}/100) · HTTP ${t.last_status}`));
+            } else {
+              scoreTd.appendChild(createEl('span', { className: 'badge badge-info' }, 'Aguardando'));
+            }
+            tr.appendChild(scoreTd);
+
+            const trendTd = createEl('td', { 'data-label': 'Tendência' });
+            trendTd.appendChild(createSparklineSvg(t.trend || []));
+            tr.appendChild(trendTd);
+
+            const actTd = createEl('td', { 'data-label': 'Ações' });
+            const actRow = createEl('div', { className: 'btn-row' });
+            const bTest = createEl('button', { className: 'btn btn-small', type: 'button' }, 'Testar');
+            bTest.addEventListener('click', async () => {
+              bTest.disabled = true;
+              await fetch('/api/watchlist/run', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: t.id }) });
+              await loadWatchlist();
+              await refreshStatus();
+              await loadHistory();
+              await loadInventory();
+            });
+            const bDel = createEl('button', { className: 'btn btn-danger btn-small', type: 'button' }, 'Remover');
+            bDel.addEventListener('click', async () => {
+              await fetch(`/api/watchlist/${encodeURIComponent(t.id)}`, { method: 'DELETE' });
+              await loadWatchlist();
+              await refreshStatus();
+            });
+            actRow.appendChild(bTest);
+            actRow.appendChild(bDel);
+            actTd.appendChild(actRow);
+            tr.appendChild(actTd);
+            tbody.appendChild(tr);
+          }
+          tbl.appendChild(tbody);
+          tblWrap.appendChild(tbl);
+          box.appendChild(tblWrap);
+        }
+
+        if (alerts.length === 0) {
+          alertBox.style.display = 'none';
+        } else {
+          alertBox.style.display = 'block';
+          clearEl(alertBox);
+          alertBox.appendChild(createEl('strong', null, `Alertas Recentes da Watchlist (${alerts.length}):`));
+          const ul = createEl('ul', { className: 'finding-list' });
+          for (const a of alerts.slice(0, 15)) {
+            const li = createEl('li');
+            li.appendChild(createEl('span', { className: sevBadgeClass(a.severity) }, a.severity.toUpperCase()));
+            li.appendChild(document.createTextNode(` [${a.label}] ${a.message} (${new Date(a.timestamp).toLocaleString('pt-BR')})`));
+            ul.appendChild(li);
+          }
+          alertBox.appendChild(ul);
+        }
+      } catch {
+        box.textContent = 'Erro ao carregar Watchlist.';
+      }
+    }
+
+    async function addWatchlistTarget() {
+      const url = document.getElementById('wl-url').value.trim();
+      const label = document.getElementById('wl-label').value.trim();
+      const interval_minutes = Number(document.getElementById('wl-interval').value);
+      const min_score = Number(document.getElementById('wl-min-score').value);
+      const webhook_url = document.getElementById('wl-webhook').value.trim();
+      const st = document.getElementById('wl-status');
+      st.style.display = 'block';
+      clearEl(st);
+      try {
+        const res = await fetch('/api/watchlist', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ url, label, interval_minutes, min_score, webhook_url })
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          st.appendChild(createEl('span', { className: 'badge badge-error' }, data.error || 'Erro ao adicionar alvo.'));
+          return;
+        }
+        document.getElementById('wl-url').value = '';
+        document.getElementById('wl-label').value = '';
+        st.appendChild(createEl('span', { className: 'badge badge-active' }, `Alvo "${data.item.url}" adicionado à Watchlist.`));
+        await loadWatchlist();
+        await refreshStatus();
+      } catch (err) {
+        st.appendChild(createEl('span', { className: 'badge badge-error' }, `Erro: ${err.message}`));
+      }
+    }
+
+    async function runWatchlistNow() {
+      const btn = document.getElementById('btn-wl-run');
+      const st = document.getElementById('wl-status');
+      btn.disabled = true;
+      st.style.display = 'block';
+      clearEl(st);
+      st.appendChild(createEl('p', null, 'Executando varredura passiva em todos os alvos da Watchlist...'));
+      try {
+        const res = await fetch('/api/watchlist/run', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+        const data = await res.json();
+        clearEl(st);
+        st.appendChild(createEl('span', { className: 'badge badge-active' }, `Varredura concluída: ${data.checked || 0} alvo(s) verificado(s).`));
+        await loadWatchlist();
+        await refreshStatus();
+        await loadHistory();
+        await loadInventory();
+      } catch (err) {
+        clearEl(st);
+        st.appendChild(createEl('span', { className: 'badge badge-error' }, `Erro: ${err.message}`));
+      } finally {
+        btn.disabled = false;
+      }
+    }
+
+    function generateCiYaml() {
+      const target = document.getElementById('ci-url').value.trim() || 'https://staging.example.com';
+      const minScore = Number(document.getElementById('ci-min-score').value) || 80;
+      const maxHigh = Number(document.getElementById('ci-max-high').value) || 0;
+      const yaml = [
+        'name: Aegis Passive Security Gate',
+        'on:',
+        '  push:',
+        '    branches: [ main ]',
+        '  schedule:',
+        "    - cron: '0 6 * * *'",
+        '  workflow_dispatch:',
+        '',
+        'permissions:',
+        '  contents: read',
+        '  security-events: write',
+        '',
+        'jobs:',
+        '  aegis-owasp-audit:',
+        '    runs-on: ubuntu-latest',
+        '    steps:',
+        '      - uses: actions/checkout@v4',
+        '      - uses: actions/setup-node@v4',
+        '        with:',
+        '          node-version: 20',
+        '      - name: Executar Aegis CLI Quality Gate + Gerar SARIF 2.1.0',
+        `        run: node aegis-cli.js audit "${target}" --min-score ${minScore} --max-high ${maxHigh} --format sarif --out aegis-results.sarif`,
+        '      - name: Enviar resultados SARIF ao GitHub Code Scanning',
+        '        if: always()',
+        '        uses: github/codeql-action/upload-sarif@v3',
+        '        with:',
+        '          sarif_file: aegis-results.sarif'
+      ].join('\n');
+      document.getElementById('ci-yaml-output').textContent = yaml;
+    }
+
+    async function testCiQualityGate() {
+      const target = document.getElementById('ci-url').value.trim();
+      const min_score = Number(document.getElementById('ci-min-score').value) || 80;
+      const max_high = Number(document.getElementById('ci-max-high').value) || 0;
+      const box = document.getElementById('ci-gate-result');
+      const btn = document.getElementById('btn-ci-test');
+      box.style.display = 'block';
+      clearEl(box);
+      if (!target) {
+        box.appendChild(createEl('span', { className: 'badge badge-error' }, 'Informe uma URL alvo para testar o Quality Gate.'));
+        return;
+      }
+      btn.disabled = true;
+      box.appendChild(createEl('p', null, `Avaliando Quality Gate para ${target} (mínimo ${min_score}/100, máx. HIGH=${max_high})...`));
+      try {
+        const res = await fetch('/api/ci/gate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ target, min_score, max_high, preset: 'compliance-full' })
+        });
+        const data = await res.json();
+        clearEl(box);
+        if (res.status >= 400 && res.status !== 422) {
+          box.appendChild(createEl('span', { className: 'badge badge-error' }, data.error || 'Erro ao executar Quality Gate.'));
+          return;
+        }
+        box.appendChild(createEl(
+          'span',
+          { className: data.passed ? 'badge badge-active' : 'badge badge-error' },
+          data.passed
+            ? `GATE APROVADO (exit 0) — OWASP ${data.owasp_grade} (${data.owasp_score}/100)`
+            : `GATE REPROVADO (exit 1) — OWASP ${data.owasp_grade} (${data.owasp_score}/100)`
+        ));
+        if (Array.isArray(data.violations) && data.violations.length > 0) {
+          const ul = createEl('ul', { className: 'finding-list' });
+          for (const v of data.violations) ul.appendChild(createEl('li', null, v));
+          box.appendChild(ul);
+        }
+        await refreshStatus();
+        await loadHistory();
+        await loadInventory();
+      } catch (err) {
+        clearEl(box);
+        box.appendChild(createEl('span', { className: 'badge badge-error' }, `Erro: ${err.message}`));
+      } finally {
+        btn.disabled = false;
+      }
+    }
+
+    function applyTheme(dark) {
+      document.body.classList.toggle('dark-mode', Boolean(dark));
+      const btn = document.getElementById('btn-theme-toggle');
+      if (btn) btn.textContent = dark ? 'Tema Claro' : 'Tema Escuro';
+      try { localStorage.setItem('aegis_theme', dark ? 'dark' : 'light'); } catch {}
     }
 
     async function recommendModulesAI() {
@@ -1406,6 +2592,8 @@
         }
         box.appendChild(createEl('span', { className: 'badge badge-active' }, `Módulos aplicados (${data.applied_ids.length}): ${data.applied_ids.join(', ')}`));
         if (data.rationale) box.appendChild(createEl('pre', { className: 'code-out' }, data.rationale));
+        document.getElementById('mod-preset').value = '';
+        document.getElementById('mod-preset-status').style.display = 'none';
         await loadModules();
         await refreshStatus();
       } catch (err) {
@@ -1426,21 +2614,53 @@
       if (res.ok) await refreshStatus();
     }
 
+    async function detectOllamaModels() {
+      const listEl = document.getElementById('ollama-models-list');
+      const ep = document.getElementById('ai-endpoint').value.trim();
+      clearEl(listEl);
+      listEl.appendChild(createEl('span', { className: 'badge badge-info' }, 'Detectando...'));
+      try {
+        const res = await fetch(`/api/ai/ollama-models?endpoint=${encodeURIComponent(ep)}`, { cache: 'no-store' });
+        const data = await res.json();
+        clearEl(listEl);
+        if (!res.ok || !Array.isArray(data.models) || data.models.length === 0) {
+          listEl.appendChild(createEl('span', { className: 'badge badge-error' }, data.error || 'Nenhum modelo Ollama encontrado.'));
+          return;
+        }
+        for (const m of data.models) {
+          const b = createEl('button', { className: 'pill-btn', type: 'button' }, m);
+          b.addEventListener('click', () => {
+            document.getElementById('ai-model').value = m;
+          });
+          listEl.appendChild(b);
+        }
+      } catch (err) {
+        clearEl(listEl);
+        listEl.appendChild(createEl('span', { className: 'badge badge-error' }, `Erro: ${err.message}`));
+      }
+    }
+
     async function saveAiConfig() {
       const box = document.getElementById('ai-status');
       box.style.display = 'block';
       clearEl(box);
+      const apiKeyInput = document.getElementById('ai-api-key');
+      const payload = {
+        ai_type: document.getElementById('ai-type').value,
+        ai_endpoint: document.getElementById('ai-endpoint').value.trim(),
+        ai_model: document.getElementById('ai-model').value.trim()
+      };
+      if (apiKeyInput && apiKeyInput.value.trim()) {
+        payload.ai_api_key = apiKeyInput.value.trim();
+      }
       const res = await fetch('/api/ai/config', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ai_type: document.getElementById('ai-type').value,
-          ai_endpoint: document.getElementById('ai-endpoint').value.trim(),
-          ai_model: document.getElementById('ai-model').value.trim()
-        })
+        body: JSON.stringify(payload)
       });
       const data = await res.json();
       if (res.ok) {
+        if (apiKeyInput) apiKeyInput.value = '';
         box.appendChild(createEl('span', { className: 'badge badge-active' }, 'Configuração de IA salva com sucesso.'));
         await refreshStatus();
       } else {
@@ -1520,12 +2740,25 @@
     }
 
     document.addEventListener('DOMContentLoaded', () => {
-      document.querySelectorAll('.tab-btn').forEach(btn => {
+      document.querySelectorAll('#workbench .tab-btn').forEach(btn => {
         btn.addEventListener('click', () => {
-          document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-          document.querySelectorAll('.tool-panel').forEach(p => p.classList.remove('active'));
+          document.querySelectorAll('#workbench .tab-btn').forEach(b => b.classList.remove('active'));
+          document.querySelectorAll('#workbench .tool-panel').forEach(p => p.classList.remove('active'));
           btn.classList.add('active');
           document.getElementById(btn.dataset.panel).classList.add('active');
+        });
+      });
+
+      document.querySelectorAll('[data-inspect-tab]').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const tab = btn.dataset.inspectTab;
+          document.querySelectorAll('[data-inspect-tab]').forEach(b => b.classList.remove('active'));
+          btn.classList.add('active');
+          const isBatch = tab === 'batch';
+          document.getElementById('inspect-single-group').style.display = isBatch ? 'none' : 'block';
+          document.getElementById('inspect-batch-group').style.display = isBatch ? 'block' : 'none';
+          document.getElementById('btn-run-inspect').style.display = isBatch ? 'none' : 'inline-block';
+          document.getElementById('btn-run-batch').style.display = isBatch ? 'inline-block' : 'none';
         });
       });
 
@@ -1579,6 +2812,14 @@
       document.getElementById('btn-entropy').addEventListener('click', runEntropy);
       document.getElementById('btn-parse-url').addEventListener('click', runUrlParser);
       document.getElementById('btn-run-inspect').addEventListener('click', runInspection);
+      document.getElementById('btn-run-batch').addEventListener('click', runBatchInspection);
+      document.getElementById('btn-detect-ollama').addEventListener('click', detectOllamaModels);
+      document.getElementById('target-url').addEventListener('keydown', (ev) => {
+        if (ev.key === 'Enter') {
+          ev.preventDefault();
+          runInspection();
+        }
+      });
       document.getElementById('btn-save-mode').addEventListener('click', saveMode);
       document.getElementById('btn-refresh-history').addEventListener('click', async () => {
         await loadHistory();
@@ -1594,29 +2835,78 @@
       document.getElementById('btn-save-ai').addEventListener('click', saveAiConfig);
       document.getElementById('btn-test-ai').addEventListener('click', testAIConnection);
       document.getElementById('btn-gen-report').addEventListener('click', generateReport);
-      document.getElementById('ai-type').addEventListener('change', toggleEndpointVisibility);
+      document.getElementById('ai-type').addEventListener('change', () => toggleEndpointVisibility(true));
       document.getElementById('mod-filter').addEventListener('input', renderModules);
       document.getElementById('mod-cat-filter').addEventListener('change', renderModules);
 
       document.getElementById('mod-preset').addEventListener('change', async (ev) => {
-        const preset = ev.target.value;
-        if (!preset) return;
-        const res = await fetch('/api/modules/bulk', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ preset })
-        });
-        if (res.ok) {
+        const selectEl = ev.target;
+        const preset = selectEl.value;
+        const statusBox = document.getElementById('mod-preset-status');
+        if (!preset) {
+          statusBox.style.display = 'none';
+          return;
+        }
+        const selectedLabel = selectEl.options[selectEl.selectedIndex]
+          ? selectEl.options[selectEl.selectedIndex].textContent
+          : preset;
+        selectEl.disabled = true;
+        statusBox.style.display = 'block';
+        clearEl(statusBox);
+        statusBox.appendChild(createEl('p', null, `Aplicando preset "${selectedLabel}"...`));
+        try {
+          const res = await fetch('/api/modules/bulk', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ preset })
+          });
+          const data = await res.json();
+          clearEl(statusBox);
+          if (!res.ok) {
+            statusBox.appendChild(createEl('span', { className: 'badge badge-error' }, data.error || 'Erro ao aplicar preset.'));
+            selectEl.value = '';
+            return;
+          }
           await loadModules();
           await refreshStatus();
+          statusBox.appendChild(createEl(
+            'span',
+            { className: 'badge badge-active' },
+            `Preset "${selectedLabel}" aplicado — ${data.active} / ${data.total} módulos ativos.`
+          ));
+        } catch (err) {
+          clearEl(statusBox);
+          statusBox.appendChild(createEl('span', { className: 'badge badge-error' }, `Erro ao aplicar preset: ${err.message}`));
+          selectEl.value = '';
+        } finally {
+          selectEl.disabled = false;
         }
-        ev.target.value = '';
       });
+
+      document.getElementById('btn-wl-add').addEventListener('click', addWatchlistTarget);
+      document.getElementById('btn-wl-run').addEventListener('click', runWatchlistNow);
+      document.getElementById('btn-wl-clear-alerts').addEventListener('click', async () => {
+        await fetch('/api/watchlist/alerts', { method: 'DELETE' });
+        await loadWatchlist();
+        await refreshStatus();
+      });
+      document.getElementById('btn-ci-test').addEventListener('click', testCiQualityGate);
+      document.getElementById('btn-ci-yaml').addEventListener('click', generateCiYaml);
+      document.getElementById('btn-ci-copy').addEventListener('click', (ev) => {
+        copyTextSafe(document.getElementById('ci-yaml-output').textContent, ev.target);
+      });
+      document.getElementById('btn-theme-toggle').addEventListener('click', () => {
+        applyTheme(!document.body.classList.contains('dark-mode'));
+      });
+      try {
+        if (localStorage.getItem('aegis_theme') === 'dark') applyTheme(true);
+      } catch {}
 
       refreshStatus();
       loadModules();
       loadHistory();
       loadInventory();
+      loadWatchlist();
     });
   </script>
 </body>

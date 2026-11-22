@@ -1,13 +1,17 @@
 {
   "name": "aegis-web",
-  "version": "1.0.0",
-  "description": "Aegis Web Console — Standalone Passive HTTP Security & Web QA Workbench with Local AI",
+  "version": "3.0.0",
+  "description": "Aegis Web Console v3.0 — Enterprise Passive HTTP/TLS/DNS Security Platform, Compliance Mapping, Watchlist Monitor, CI/CD Gate & Multi-Provider AI",
   "main": "webserver.js",
+  "bin": {
+    "aegis-cli": "./aegis-cli.js"
+  },
   "scripts": {
-    "start": "node webserver.js"
+    "start": "node webserver.js",
+    "cli": "node aegis-cli.js",
+    "test": "./test.sh"
   },
   "dependencies": {
-    "body-parser": "^2.4.0",
     "express": "^5.3.0"
   }
 }

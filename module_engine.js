@@ -1,9 +1,12 @@
 'use strict';
 
 /**
- * Aegis Web Console — Modular Passive & Defensive Inspection Engine (30 Modules)
- * Strictly passive HTTP/TLS/DNS/Schema QA checks + defensive hardening generators.
+ * Aegis Web Console v3.0 — Modular Passive & Defensive Inspection Engine (42 Modules)
+ * Strictly passive HTTP/TLS/DNS/Well-Known/Redirect/Supply-Chain/Privacy/Schema QA checks
+ * with OWASP Top 10:2021, ASVS v4.0 & CWE compliance mapping.
  */
+
+const { enrichFindingWithCompliance, buildComplianceMatrix } = require('./compliance_mapper');
 
 function parseCookies(rawHeader) {
   const list = Array.isArray(rawHeader) ? rawHeader : (rawHeader ? [rawHeader] : []);
@@ -999,7 +1002,7 @@ const MODULE_RUNNERS = {
     }
     const findings = [];
     const { protocol, cipher, subject, issuer, validTo, daysRemaining } = ctx.tlsInfo;
-    if (protocol && /^(TLSv1|TLSv1\.1|SSLv)/i.test(protocol)) {
+    if (protocol && /^(TLSv1(\.0|\.1)?$|SSLv)/i.test(protocol)) {
       findings.push({
         severity: 'high',
         item: `Protocolo TLS legado negociado (${protocol})`,
@@ -1186,6 +1189,634 @@ const MODULE_RUNNERS = {
       details: { owasp_headers_present: presentCount, owasp_headers_total: 6 },
       findings: []
     };
+  },
+
+  'security-txt-auditor': (ctx) => {
+    const sec = ctx.wellKnown && ctx.wellKnown.securityTxt;
+    if (!sec || sec.skipped) {
+      return {
+        status: 'info',
+        summary: (sec && sec.reason) || 'Verificação de /.well-known/security.txt não executada',
+        details: sec || { skipped: true },
+        findings: []
+      };
+    }
+    const findings = [];
+    if (!sec.found) {
+      findings.push({
+        severity: 'info',
+        item: 'Arquivo /.well-known/security.txt (RFC 9116) ausente',
+        recommendation: 'Publicar /.well-known/security.txt via HTTPS com campos Contact e Expires para canal formal de divulgação responsável.'
+      });
+      return {
+        status: 'info',
+        summary: `/.well-known/security.txt ausente (HTTP ${sec.statusCode || 'n/a'})`,
+        details: { found: false, status_code: sec.statusCode || null },
+        findings
+      };
+    }
+    const text = String(sec.body || '');
+    const hasContact = /^\s*Contact\s*:\s*\S+/im.test(text);
+    const expiresMatch = text.match(/^\s*Expires\s*:\s*([^\r\n]+)/im);
+    const hasEncryption = /^\s*Encryption\s*:\s*\S+/im.test(text);
+    const hasPolicy = /^\s*Policy\s*:\s*\S+/im.test(text);
+    let expiresStatus = 'ausente';
+
+    if (!hasContact) {
+      findings.push({
+        severity: 'low',
+        item: 'security.txt não declara campo obrigatório Contact (RFC 9116)',
+        recommendation: 'Adicionar ao menos uma linha Contact: (mailto: ou https://) em /.well-known/security.txt.'
+      });
+    }
+    if (!expiresMatch) {
+      findings.push({
+        severity: 'low',
+        item: 'security.txt não declara campo obrigatório Expires (RFC 9116)',
+        recommendation: 'Incluir diretiva Expires em formato ISO 8601 (ex.: 2027-12-31T23:59:00.000Z).'
+      });
+    } else {
+      const expMs = Date.parse(expiresMatch[1].trim());
+      if (!Number.isFinite(expMs)) {
+        expiresStatus = 'inválido';
+        findings.push({
+          severity: 'low',
+          item: `Campo Expires em security.txt possui formato de data inválido (${expiresMatch[1].trim()})`,
+          recommendation: 'Corrigir o campo Expires para formato RFC 3339 / ISO 8601 válido.'
+        });
+      } else {
+        const daysLeft = Math.floor((expMs - Date.now()) / (1000 * 60 * 60 * 24));
+        expiresStatus = daysLeft < 0 ? `expirado (${Math.abs(daysLeft)}d atrás)` : `válido (${daysLeft}d)`;
+        if (daysLeft < 0) {
+          findings.push({
+            severity: 'medium',
+            item: `Arquivo security.txt expirado há ${Math.abs(daysLeft)} dia(s)`,
+            recommendation: 'Atualizar a data de Expires em /.well-known/security.txt e revisar contatos de segurança.'
+          });
+        } else if (daysLeft <= 14) {
+          findings.push({
+            severity: 'info',
+            item: `Arquivo security.txt expira em ${daysLeft} dia(s)`,
+            recommendation: 'Agendar renovação periódica do campo Expires em /.well-known/security.txt.'
+          });
+        }
+      }
+    }
+    if (ctx.url.protocol !== 'https:') {
+      findings.push({
+        severity: 'low',
+        item: 'security.txt servido via HTTP sem TLS',
+        recommendation: 'Servir /.well-known/security.txt exclusivamente sobre HTTPS conforme RFC 9116.'
+      });
+    }
+    return {
+      status: findings.some(f => f.severity !== 'info') ? 'warn' : 'pass',
+      summary: `security.txt encontrado · Contact=${hasContact ? 'OK' : 'ausente'} · Expires=${expiresStatus}`,
+      details: { found: true, has_contact: hasContact, expires: expiresStatus, has_encryption: hasEncryption, has_policy: hasPolicy },
+      findings
+    };
+  },
+
+  'robots-sitemap-hygiene': (ctx) => {
+    const rob = ctx.wellKnown && ctx.wellKnown.robotsTxt;
+    if (!rob || rob.skipped) {
+      return {
+        status: 'info',
+        summary: (rob && rob.reason) || 'Verificação de /robots.txt não executada',
+        details: rob || { skipped: true },
+        findings: []
+      };
+    }
+    if (!rob.found) {
+      return {
+        status: 'info',
+        summary: `/robots.txt não encontrado (HTTP ${rob.statusCode || 'n/a'})`,
+        details: { found: false, status_code: rob.statusCode || null },
+        findings: []
+      };
+    }
+    const lines = String(rob.body || '').split(/\r?\n/);
+    const disallows = [];
+    const sitemaps = [];
+    for (const raw of lines) {
+      const clean = raw.replace(/#.*$/, '').trim();
+      const dm = clean.match(/^Disallow\s*:\s*(\S+)/i);
+      if (dm) disallows.push(dm[1]);
+      const sm = clean.match(/^Sitemap\s*:\s*(\S+)/i);
+      if (sm) sitemaps.push(sm[1]);
+    }
+    const sensitiveRe = /(admin|wp-admin|cpanel|backup|bak|dump|\.sql|\.env|\.git|internal|private|secret|staging|debug|phpinfo|config|console|manage|portal-interno|swagger|graphql)/i;
+    const sensitivePaths = [...new Set(disallows.filter(p => sensitiveRe.test(p)))];
+    const findings = [];
+    if (sensitivePaths.length > 0) {
+      findings.push({
+        severity: 'low',
+        item: `/robots.txt lista ${sensitivePaths.length} rota(s) potencialmente sensível(is) em Disallow (${sensitivePaths.slice(0, 5).join(', ')})`,
+        recommendation: 'Evitar usar /robots.txt para ocultar rotas administrativas/internas; proteger endpoints sensíveis com autenticação forte e controle de acesso no servidor.'
+      });
+    }
+    return {
+      status: findings.length ? 'warn' : 'pass',
+      summary: `robots.txt analisado · ${disallows.length} Disallow (${sensitivePaths.length} sensível) · ${sitemaps.length} Sitemap`,
+      details: { found: true, disallow_count: disallows.length, sensitive_paths: sensitivePaths.slice(0, 12), sitemaps: sitemaps.slice(0, 6) },
+      findings
+    };
+  },
+
+  'redirect-chain-auditor': (ctx) => {
+    const chain = Array.isArray(ctx.redirectChain) ? ctx.redirectChain : [];
+    const findings = [];
+    if (chain.length <= 1) {
+      return {
+        status: 'pass',
+        summary: `Resposta direta sem redirecionamentos (HTTP ${ctx.statusCode})`,
+        details: { hops: chain.length || 1, chain },
+        findings: []
+      };
+    }
+    let downgradeDetected = false;
+    let tempHttpsUpgrade = false;
+    let crossHostHops = 0;
+    let stayedHttp = true;
+
+    for (let i = 0; i < chain.length - 1; i++) {
+      const cur = chain[i];
+      const next = chain[i + 1];
+      if (cur.protocol === 'https:' && next.protocol === 'http:') downgradeDetected = true;
+      if (cur.protocol === 'http:' && next.protocol === 'https:' && (cur.statusCode === 302 || cur.statusCode === 307)) {
+        tempHttpsUpgrade = true;
+      }
+      if (cur.host && next.host && cur.host !== next.host) crossHostHops++;
+      if (next.protocol === 'https:') stayedHttp = false;
+    }
+
+    if (downgradeDetected) {
+      findings.push({
+        severity: 'high',
+        item: 'Downgrade de protocolo detectado na cadeia de redirecionamento (HTTPS -> HTTP)',
+        recommendation: 'Garantir que todos os redirecionamentos a partir de HTTPS permaneçam exclusivamente em HTTPS.'
+      });
+    }
+    if (chain[0].protocol === 'http:' && stayedHttp) {
+      findings.push({
+        severity: 'medium',
+        item: 'Cadeia de redirecionamentos iniciada em HTTP não realiza upgrade para HTTPS',
+        recommendation: 'Configurar redirecionamento permanente (301/308) de HTTP para HTTPS na borda/servidor.'
+      });
+    }
+    if (tempHttpsUpgrade) {
+      findings.push({
+        severity: 'info',
+        item: 'Upgrade HTTP -> HTTPS utiliza redirecionamento temporário (302/307)',
+        recommendation: 'Preferir redirecionamento permanente 301 ou 308 para HTTP -> HTTPS.'
+      });
+    }
+    if (chain.length > 3) {
+      findings.push({
+        severity: 'info',
+        item: `Cadeia longa de redirecionamentos (${chain.length - 1} salto(s))`,
+        recommendation: 'Reduzir saltos intermediários para diminuir latência e superfície de erro de configuração.'
+      });
+    }
+    if (crossHostHops > 0) {
+      findings.push({
+        severity: 'info',
+        item: `Redirecionamento entre hosts diferentes (${chain[0].host} -> ${chain[chain.length - 1].host})`,
+        recommendation: 'Confirmar que todos os destinos intermediários pertencem ao escopo esperado.'
+      });
+    }
+
+    const trail = chain.map(h => `${h.statusCode}`).join(' -> ');
+    return {
+      status: findings.some(f => f.severity !== 'info') ? 'warn' : 'pass',
+      summary: `${chain.length - 1} redirecionamento(s): ${trail} (${chain[0].protocol} -> ${chain[chain.length - 1].protocol})`,
+      details: { hops: chain.length - 1, downgrade: downgradeDetected, cross_host_hops: crossHostHops, chain },
+      findings
+    };
+  },
+
+  'dns-advanced-posture': (ctx) => {
+    const dns = ctx.dnsPosture;
+    if (!dns || dns.skipped) {
+      return {
+        status: 'info',
+        summary: (dns && dns.reason) || 'Consulta DNS avançada não aplicável (alvo IP/local)',
+        details: dns || { skipped: true },
+        findings: []
+      };
+    }
+    if (!dns.advancedChecked) {
+      return {
+        status: 'info',
+        summary: 'Consulta DNS avançada (MX/MTA-STS/DKIM) não habilitada nesta execução',
+        details: { skipped: true },
+        findings: []
+      };
+    }
+    const findings = [];
+    const mxCount = Array.isArray(dns.mx) ? dns.mx.length : 0;
+    const hasMtaSts = Boolean(dns.mtaSts);
+    const dkimFound = Array.isArray(dns.dkimSelectors) ? dns.dkimSelectors : [];
+
+    if (mxCount > 0 && !hasMtaSts) {
+      findings.push({
+        severity: 'info',
+        item: `Domínio ${dns.domain} possui ${mxCount} registro(s) MX mas não declara MTA-STS (_mta-sts)`,
+        recommendation: 'Considerar publicar registro TXT _mta-sts e política HTTPS MTA-STS para exigir TLS no transporte SMTP.'
+      });
+    }
+    if (mxCount > 0 && dkimFound.length === 0) {
+      findings.push({
+        severity: 'info',
+        item: `Nenhum seletor DKIM comum detectado em ${dns.domain} (verificação passiva de seletores padrão)`,
+        recommendation: 'Garantir assinatura DKIM ativa para servidores autorizados (seletores customizados podem não aparecer em sondagem padrão).'
+      });
+    }
+    return {
+      status: 'pass',
+      summary: `MX=${mxCount} · MTA-STS=${hasMtaSts ? 'OK' : 'ausente'} · DKIM(padrão)=${dkimFound.length ? dkimFound.join(',') : 'não detectado'}`,
+      details: { domain: dns.domain, mx: dns.mx || [], mta_sts: dns.mtaSts || null, dkim_selectors: dkimFound },
+      findings
+    };
+  },
+
+  'subresource-thirdparty-audit': (ctx) => {
+    const body = ctx.bodyText || '';
+    const ct = (ctx.contentType || '').toLowerCase();
+    if (!ct.includes('html') && !/<(?:script|link|img|iframe)\b/i.test(body)) {
+      return {
+        status: 'info',
+        summary: 'Resposta não HTML — inventário de subrecursos de terceiros não aplicável',
+        details: { third_party_hosts: [] },
+        findings: []
+      };
+    }
+    const urlMatches = [...body.matchAll(/<(?:script|link|img|iframe)\b[^>]*?\b(?:src|href)=["']((?:https?:)?\/\/[^"'\s>]+)["']/gi)];
+    const thirdPartyMap = new Map();
+    let insecureThirdParty = 0;
+
+    for (const m of urlMatches) {
+      const rawUrl = m[1].startsWith('//') ? `${ctx.url.protocol}${m[1]}` : m[1];
+      try {
+        const u = new URL(rawUrl);
+        if (u.hostname.toLowerCase() !== ctx.url.hostname.toLowerCase()) {
+          thirdPartyMap.set(u.hostname.toLowerCase(), (thirdPartyMap.get(u.hostname.toLowerCase()) || 0) + 1);
+          if (ctx.url.protocol === 'https:' && u.protocol === 'http:') insecureThirdParty++;
+        }
+      } catch {
+        // ignore malformed URLs
+      }
+    }
+
+    const hosts = [...thirdPartyMap.entries()].sort((a, b) => b[1] - a[1]).map(([host, refs]) => ({ host, refs }));
+    const findings = [];
+    if (insecureThirdParty > 0) {
+      findings.push({
+        severity: 'medium',
+        item: `${insecureThirdParty} subrecurso(s) de terceiros carregado(s) via HTTP em página HTTPS`,
+        recommendation: 'Migrar todas as referências externas (scripts, CSS, imagens, iframes) para HTTPS.'
+      });
+    }
+    if (hosts.length > 10) {
+      findings.push({
+        severity: 'info',
+        item: `Superfície ampla de terceiros: ${hosts.length} domínios externos referenciados na página`,
+        recommendation: 'Revisar dependências externas, aplicar SRI em scripts/estilos e restringir origens via Content-Security-Policy.'
+      });
+    }
+    return {
+      status: findings.some(f => f.severity !== 'info') ? 'warn' : 'pass',
+      summary: `${hosts.length} domínio(s) de terceiros detectado(s) (${urlMatches.length} referência(s) externa(s))`,
+      details: { total_external_refs: urlMatches.length, third_party_count: hosts.length, insecure_refs: insecureThirdParty, top_hosts: hosts.slice(0, 12) },
+      findings
+    };
+  },
+
+  'api-auth-hygiene': (ctx) => {
+    const findings = [];
+    const wwwAuth = ctx.headers['www-authenticate'] || null;
+    const cc = ctx.headers['cache-control'] || '';
+    const allow = ctx.headers['allow'] || ctx.headers['access-control-allow-methods'] || '';
+    const ctLow = (ctx.contentType || '').toLowerCase();
+    const isApi = ctLow.includes('json') || /\/(api|graphql|v\d+)\b/i.test(ctx.url.pathname);
+
+    if (wwwAuth && /\bbasic\b/i.test(wwwAuth)) {
+      if (ctx.url.protocol !== 'https:') {
+        findings.push({
+          severity: 'high',
+          item: 'Autenticação HTTP Basic anunciada em transporte HTTP sem criptografia',
+          recommendation: 'Exigir HTTPS/TLS antes de aceitar credenciais HTTP Basic e preferir OAuth2/OIDC ou tokens Bearer.'
+        });
+      } else {
+        findings.push({
+          severity: 'info',
+          item: 'Endpoint anuncia autenticação HTTP Basic (WWW-Authenticate: Basic)',
+          recommendation: 'Preferir tokens de curta duração (OAuth2/OIDC) em APIs modernas.'
+        });
+      }
+    }
+
+    if (allow && /\b(TRACE|TRACK)\b/i.test(allow)) {
+      findings.push({
+        severity: 'medium',
+        item: `Método HTTP inseguro anunciado em Allow/CORS (${allow})`,
+        recommendation: 'Desabilitar os métodos TRACE e TRACK no servidor web e no gateway/proxy reverso.'
+      });
+    }
+
+    if ((isApi || wwwAuth || ctx.rawHeaders['set-cookie']) && cc && !/(no-store|private)/i.test(cc)) {
+      findings.push({
+        severity: 'low',
+        item: `Resposta de API/autenticação sem Cache-Control: no-store ou private (atual: ${cc})`,
+        recommendation: 'Definir Cache-Control: no-store em endpoints autenticados ou APIs que retornam dados sensíveis.'
+      });
+    }
+
+    if (ctx.statusCode >= 400 && isApi && /(stack|exception|trace|sqlstate|syntax error|line \d+)/i.test(ctx.bodyText || '')) {
+      findings.push({
+        severity: 'low',
+        item: `Resposta de erro HTTP ${ctx.statusCode} da API contém detalhes internos de exceção/stack`,
+        recommendation: 'Padronizar respostas de erro (RFC 9457 Problem Details) sem expor stack traces ou detalhes internos.'
+      });
+    }
+
+    return {
+      status: findings.some(f => f.severity !== 'info') ? 'warn' : 'pass',
+      summary: isApi
+        ? `API HTTP ${ctx.statusCode} · Auth=${wwwAuth ? wwwAuth.split(' ')[0] : 'n/a'} · Allow=${allow || 'n/a'}`
+        : `Higiene de autenticação/métodos OK${wwwAuth ? ` (${wwwAuth.split(' ')[0]})` : ''}`,
+      details: { detected_api: isApi, www_authenticate: wwwAuth, allow: allow || null, cache_control: cc || null },
+      findings
+    };
+  },
+
+  'tls-chain-ocsp-auditor': (ctx) => {
+    if (ctx.url.protocol !== 'https:' || !ctx.tlsInfo) {
+      return {
+        status: 'info',
+        summary: 'Sem sessão TLS — auditoria de cadeia e chave não aplicável',
+        details: { tls: false },
+        findings: []
+      };
+    }
+    const findings = [];
+    const { keyBits, keyType, chainDepth, selfSigned, wildcardSan, sanCount } = ctx.tlsInfo;
+
+    if (selfSigned) {
+      findings.push({
+        severity: 'high',
+        item: 'Certificado TLS autoassinado detectado na ponta do servidor',
+        recommendation: 'Substituir por certificado emitido por Autoridade Certificadora confiável (ex.: ACME / Let’s Encrypt ou CA corporativa).'
+      });
+    }
+    if (keyType === 'RSA' && typeof keyBits === 'number' && keyBits < 2048) {
+      findings.push({
+        severity: 'high',
+        item: `Chave pública RSA fraca (${keyBits} bits < 2048 bits)`,
+        recommendation: 'Reemitir o certificado TLS com chave RSA >= 2048 bits ou ECDSA P-256 / P-384.'
+      });
+    } else if (keyType === 'EC' && typeof keyBits === 'number' && keyBits < 256) {
+      findings.push({
+        severity: 'medium',
+        item: `Curva ECDSA curta (${keyBits} bits)`,
+        recommendation: 'Utilizar curva ECDSA P-256 (prime256v1) ou P-384.'
+      });
+    }
+    if (typeof chainDepth === 'number' && chainDepth === 1 && !selfSigned) {
+      findings.push({
+        severity: 'info',
+        item: 'Cadeia TLS apresenta apenas 1 certificado (possível intermediário ausente no servidor)',
+        recommendation: 'Garantir envio do fullchain.pem completo no servidor/load balancer para compatibilidade em todos os clientes.'
+      });
+    }
+    if (wildcardSan) {
+      findings.push({
+        severity: 'info',
+        item: 'Certificado wildcard (*.domínio) em uso',
+        recommendation: 'Avaliar certificados dedicados por serviço/subdomínio em ambientes críticos para limitar raio de impacto em caso de comprometimento de chave.'
+      });
+    }
+
+    return {
+      status: findings.some(f => f.severity !== 'info') ? 'warn' : 'pass',
+      summary: `Chave=${keyType || 'n/a'}${keyBits ? ` ${keyBits}b` : ''} · Cadeia=${chainDepth ?? '?'} cert(s) · SANs=${sanCount ?? 0}${wildcardSan ? ' (wildcard)' : ''}`,
+      details: { key_type: keyType || null, key_bits: keyBits || null, chain_depth: chainDepth ?? null, self_signed: Boolean(selfSigned), wildcard_san: Boolean(wildcardSan) },
+      findings
+    };
+  },
+
+  'dns-bimi-dangling-audit': (ctx) => {
+    const dns = ctx.dnsPosture;
+    if (!dns || dns.skipped) {
+      return {
+        status: 'info',
+        summary: (dns && dns.reason) || 'Auditoria DNS de resiliência/BIMI não aplicável (alvo IP/local)',
+        details: dns || { skipped: true },
+        findings: []
+      };
+    }
+    if (!dns.resilienceChecked) {
+      return {
+        status: 'info',
+        summary: 'Verificação DNS avançada de NS/AAAA/BIMI/CNAME não habilitada nesta execução',
+        details: { skipped: true },
+        findings: []
+      };
+    }
+    const findings = [];
+    const nsCount = Array.isArray(dns.ns) ? dns.ns.length : 0;
+    const aaaaCount = Array.isArray(dns.aaaa) ? dns.aaaa.length : 0;
+    const cnames = Array.isArray(dns.cname) ? dns.cname : [];
+    const hasBimi = Boolean(dns.bimi);
+
+    if (nsCount === 1) {
+      findings.push({
+        severity: 'low',
+        item: `Ponto único de falha DNS: apenas 1 registro NS detectado em ${dns.domain}`,
+        recommendation: 'Configurar ao menos 2 servidores autoritativos (NS) geograficamente distribuídos conforme RFC 2182.'
+      });
+    }
+    if (dns.danglingCnameRisk) {
+      findings.push({
+        severity: 'high',
+        item: `Possível CNAME órfão (dangling DNS) detectado: ${cnames.join(', ')}`,
+        recommendation: 'Remover registros CNAME que apontam para serviços de terceiros desprovisionados para prevenir subdomain takeover.'
+      });
+    }
+    if (aaaaCount === 0) {
+      findings.push({
+        severity: 'info',
+        item: `Registro IPv6 (AAAA) ausente em ${dns.domain}`,
+        recommendation: 'Considerar habilitar dual-stack IPv4/IPv6 na borda/CDN.'
+      });
+    }
+    if (!hasBimi && dns.dmarc && /\bp=(quarantine|reject)\b/i.test(dns.dmarc)) {
+      findings.push({
+        severity: 'info',
+        item: 'Domínio pronto para BIMI (DMARC enforcing ativo), mas registro _bimi ausente',
+        recommendation: 'Opcional: publicar registro TXT default._bimi para exibir logotipo autenticado em clientes de e-mail.'
+      });
+    }
+
+    return {
+      status: findings.some(f => f.severity !== 'info') ? 'warn' : 'pass',
+      summary: `NS=${nsCount} · IPv6(AAAA)=${aaaaCount} · CNAME=${cnames.length} · BIMI=${hasBimi ? 'OK' : 'ausente'}`,
+      details: { ns: dns.ns || [], aaaa_count: aaaaCount, cname: cnames, bimi: dns.bimi || null, dangling_cname_risk: Boolean(dns.danglingCnameRisk) },
+      findings
+    };
+  },
+
+  'graphql-api-hygiene': (ctx) => {
+    const body = ctx.bodyText || '';
+    const findings = [];
+    const signals = [];
+
+    if (/(GraphQL Playground|GraphiQL|Apollo Sandbox|graphql-playground-react)/i.test(body)) {
+      signals.push('GraphQL IDE pública');
+      findings.push({
+        severity: 'medium',
+        item: 'Interface interativa GraphQL (Playground/GraphiQL/Apollo Sandbox) detectada na resposta',
+        recommendation: 'Desabilitar GraphQL Playground/GraphiQL e introspecção em produção, restringindo acesso a ambientes internos.'
+      });
+    }
+    if (/(SwaggerUIBundle|swagger-ui\.css|<redoc\b|Scalar\.createApiReference)/i.test(body)) {
+      signals.push('Documentação interativa OpenAPI/Swagger');
+      findings.push({
+        severity: 'info',
+        item: 'Documentação interativa de API (Swagger UI / Redoc / Scalar) exposta publicamente',
+        recommendation: 'Confirmar se a documentação pública é intencional e garantir que rotas administrativas/internas não estejam documentadas ou sem autenticação.'
+      });
+    }
+    if (ctx.headers['x-graphql-event-stream'] || /application\/graphql/i.test(ctx.contentType || '')) {
+      signals.push('Endpoint GraphQL detectado');
+    }
+
+    return {
+      status: findings.some(f => f.severity !== 'info') ? 'warn' : 'pass',
+      summary: signals.length ? `Sinais detectados: ${signals.join(', ')}` : 'Nenhuma console interativa GraphQL/Swagger exposta nesta URL',
+      details: { signals },
+      findings
+    };
+  },
+
+  'pwa-manifest-serviceworker-audit': (ctx) => {
+    const body = ctx.bodyText || '';
+    const findings = [];
+    const manifestMatch = body.match(/<link\b[^>]*\brel=["']manifest["'][^>]*\bhref=["']([^"']+)["']/i)
+      || body.match(/<link\b[^>]*\bhref=["']([^"']+)["'][^>]*\brel=["']manifest["']/i);
+    const hasSw = /navigator\.serviceWorker\.register\s*\(/i.test(body);
+
+    if (hasSw && ctx.url.protocol !== 'https:') {
+      findings.push({
+        severity: 'medium',
+        item: 'Registro de Service Worker detectado em página HTTP sem TLS',
+        recommendation: 'Service Workers exigem contexto seguro HTTPS (exceto localhost); migrar a aplicação para HTTPS.'
+      });
+    }
+    if (manifestMatch && /^http:\/\//i.test(manifestMatch[1]) && ctx.url.protocol === 'https:') {
+      findings.push({
+        severity: 'low',
+        item: `Web App Manifest carregado via HTTP em página HTTPS (${manifestMatch[1]})`,
+        recommendation: 'Referenciar o Web App Manifest via HTTPS ou caminho relativo.'
+      });
+    }
+
+    return {
+      status: findings.length ? 'warn' : 'pass',
+      summary: `Manifest=${manifestMatch ? manifestMatch[1].slice(0, 32) : 'ausente'} · ServiceWorker=${hasSw ? 'detectado' : 'não detectado'}`,
+      details: { manifest_href: manifestMatch ? manifestMatch[1] : null, service_worker_detected: hasSw },
+      findings
+    };
+  },
+
+  'supply-chain-tech-fingerprint': (ctx) => {
+    const body = ctx.bodyText || '';
+    const findings = [];
+    const detected = [];
+
+    const checks = [
+      { name: 'jQuery 1.x / 2.x (EOL)', re: /jquery[-.]([12]\.\d+\.\d+)(?:\.min)?\.js/i, sev: 'medium', rec: 'Atualizar jQuery para >= 3.7.x (versões 1.x e 2.x possuem múltiplas CVEs conhecidas de XSS).' },
+      { name: 'jQuery < 3.5.0', re: /jquery[-.](3\.[0-4]\.\d+)(?:\.min)?\.js/i, sev: 'low', rec: 'Atualizar jQuery para >= 3.7.x para mitigar CVEs de manipulação DOM/HTML.' },
+      { name: 'AngularJS 1.x (EOL)', re: /angular(?:\.min)?[-.]?(1\.\d+\.\d+)|ng-app=/i, sev: 'medium', rec: 'AngularJS 1.x atingiu End-of-Life; planejar migração para framework suportado com patches de segurança.' },
+      { name: 'Bootstrap 3.x (EOL)', re: /bootstrap[-.](3\.\d+\.\d+)(?:\.min)?\.(?:js|css)/i, sev: 'low', rec: 'Bootstrap 3.x atingiu EOL; atualizar para Bootstrap 5.x para evitar vulnerabilidades XSS em tooltips/popovers.' },
+      { name: 'Lodash < 4.17.21', re: /lodash[-.](4\.(?:1[0-6]|17\.(?:[0-9]|1[0-9]|20)))(?:\.min)?\.js/i, sev: 'medium', rec: 'Atualizar Lodash para >= 4.17.21 (mitigação contra prototype pollution).' },
+      { name: 'Moment.js (legado)', re: /moment(?:\.min)?\.js/i, sev: 'info', rec: 'Moment.js está em modo manutenção; considerar alternativas modernas mais leves (Intl, Temporal, date-fns ou Day.js).' }
+    ];
+
+    for (const c of checks) {
+      const m = body.match(c.re);
+      if (m) {
+        const ver = m[1] ? ` (${m[1]})` : '';
+        detected.push(`${c.name}${ver}`);
+        findings.push({
+          severity: c.sev,
+          item: `Biblioteca frontend legada/desatualizada detectada: ${c.name}${ver}`,
+          recommendation: c.rec
+        });
+      }
+    }
+
+    return {
+      status: findings.some(f => f.severity !== 'info') ? 'warn' : 'pass',
+      summary: detected.length ? `${detected.length} componente(s) legado(s) detectado(s)` : 'Nenhuma biblioteca frontend EOL evidente detectada no HTML',
+      details: { detected_legacy_libs: detected },
+      findings
+    };
+  },
+
+  'privacy-consent-tracker-audit': (ctx) => {
+    const body = ctx.bodyText || '';
+    const findings = [];
+    const trackers = [];
+
+    const trackerPatterns = [
+      { label: 'Google Tag Manager', re: /googletagmanager\.com\/gtm\.js/i },
+      { label: 'Google Analytics', re: /(?:google-analytics\.com|googletagmanager\.com\/gtag\/js)/i },
+      { label: 'Meta Pixel', re: /connect\.facebook\.net\/.*\/fbevents\.js/i },
+      { label: 'Hotjar', re: /static\.hotjar\.com/i },
+      { label: 'Microsoft Clarity', re: /clarity\.ms\/tag/i },
+      { label: 'TikTok Pixel', re: /analytics\.tiktok\.com/i },
+      { label: 'DoubleClick / Ads', re: /doubleclick\.net/i }
+    ];
+
+    for (const tp of trackerPatterns) {
+      if (tp.re.test(body)) trackers.push(tp.label);
+    }
+
+    const cookies = parseCookies(ctx.rawHeaders['set-cookie']);
+    const trackingCookies = cookies.filter(c => /^(_ga|_gid|_fbp|_fbc|_hj|_clck|_ttp|IDE)/i.test(c.name));
+    const hasPrivacyLink = /(?:privacidade|privacy[-_ ]?policy|politica-de-privacidade|lgpd|gdpr)/i.test(body);
+    const permPol = ctx.headers['permissions-policy'] || '';
+    const hasTopicsOptOut = /(browsing-topics\s*=\s*\(\s*\)|interest-cohort\s*=\s*\(\s*\))/i.test(permPol);
+
+    if (trackingCookies.length > 0) {
+      findings.push({
+        severity: 'low',
+        item: `${trackingCookies.length} cookie(s) de rastreamento/analytics emitido(s) na primeira requisição anônima (${trackingCookies.map(c => c.name).join(', ')})`,
+        recommendation: 'Sob LGPD/GDPR, emitir cookies não essenciais de analytics/marketing somente após consentimento explícito do usuário.'
+      });
+    }
+    if (trackers.length > 0 && !hasPrivacyLink) {
+      findings.push({
+        severity: 'info',
+        item: `${trackers.length} tracker(s) de terceiros detectado(s) sem referência visível a Política de Privacidade no HTML (${trackers.join(', ')})`,
+        recommendation: 'Garantir aviso de transparência/consentimento e link claro para a Política de Privacidade (LGPD/GDPR).'
+      });
+    }
+    if (!hasTopicsOptOut && (ctx.contentType || '').toLowerCase().includes('html')) {
+      findings.push({
+        severity: 'info',
+        item: 'Permissions-Policy não declara opt-out de Privacy Sandbox Topics (browsing-topics=())',
+        recommendation: 'Adicionar browsing-topics=() em Permissions-Policy caso o site opte por não participar de rastreamento por tópicos do navegador.'
+      });
+    }
+
+    return {
+      status: findings.some(f => f.severity !== 'info') ? 'warn' : 'pass',
+      summary: `Trackers=${trackers.length} · Cookies tracking=${trackingCookies.length} · Link Privacidade=${hasPrivacyLink ? 'Sim' : 'Não'}`,
+      details: { trackers, tracking_cookies: trackingCookies.map(c => c.name), has_privacy_link: hasPrivacyLink, topics_opt_out: hasTopicsOptOut },
+      findings
+    };
   }
 };
 
@@ -1257,22 +1888,72 @@ function generateHardeningSnippets(ctx, findings) {
     '});'
   ];
 
+  const caddyLines = [
+    '# Hardening defensivo sugerido (Caddyfile)',
+    'header {',
+    '  -Server',
+    '  -X-Powered-By',
+    ...recommendedHeaders.map(([k, v]) => `  ${k} "${v}"`),
+    '}'
+  ];
+
+  const cloudflareLines = [
+    '// Hardening defensivo sugerido (Cloudflare Workers)',
+    'export default {',
+    '  async fetch(request) {',
+    '    const response = await fetch(request);',
+    '    const headers = new Headers(response.headers);',
+    "    headers.delete('Server');",
+    "    headers.delete('X-Powered-By');",
+    ...recommendedHeaders.map(([k, v]) => `    headers.set('${k}', ${JSON.stringify(v)});`),
+    '    return new Response(response.body, { status: response.status, headers });',
+    '  }',
+    '};'
+  ];
+
   return {
     missing_count: recommendedHeaders.length,
     findings_addressed: (findings || []).length,
     headers: Object.fromEntries(recommendedHeaders),
     nginx: nginxLines.join('\n'),
     apache: apacheLines.join('\n'),
-    express: expressLines.join('\n')
+    express: expressLines.join('\n'),
+    caddy: caddyLines.join('\n'),
+    cloudflare: cloudflareLines.join('\n')
+  };
+}
+
+function computeInspectionDelta(currentRecord, previousRecord) {
+  if (!currentRecord || !previousRecord) return null;
+  const curKeys = new Map((currentRecord.findings || []).map(f => [`${f.module_id}|${f.item}`, f]));
+  const prevKeys = new Map((previousRecord.findings || []).map(f => [`${f.module_id}|${f.item}`, f]));
+  const resolved = [];
+  const added = [];
+  for (const [k, f] of prevKeys.entries()) {
+    if (!curKeys.has(k)) resolved.push(`[${f.severity.toUpperCase()}] ${f.item}`);
+  }
+  for (const [k, f] of curKeys.entries()) {
+    if (!prevKeys.has(k)) added.push(`[${f.severity.toUpperCase()}] ${f.item}`);
+  }
+  return {
+    previous_timestamp: previousRecord.timestamp,
+    previous_score: previousRecord.owasp_score,
+    previous_grade: previousRecord.owasp_grade,
+    score_delta: Number(currentRecord.owasp_score || 0) - Number(previousRecord.owasp_score || 0),
+    resolved_count: resolved.length,
+    new_count: added.length,
+    resolved_sample: resolved.slice(0, 6),
+    new_sample: added.slice(0, 6)
   };
 }
 
 function autoSelectModulesForContext(ctx) {
-  const picks = new Set(['request-inspector', 'header-extractor', 'http-history', 'owasp-compliance']);
+  const picks = new Set(['request-inspector', 'header-extractor', 'http-history', 'owasp-compliance', 'redirect-chain-auditor']);
   if (ctx.url.protocol === 'https:') {
     picks.add('hsts-tls-checker');
     picks.add('cert-inspector');
     picks.add('tls-cipher-hardening');
+    picks.add('tls-chain-ocsp-auditor');
   } else {
     picks.add('hsts-tls-checker');
   }
@@ -1284,10 +1965,18 @@ function autoSelectModulesForContext(ctx) {
     picks.add('form-hygiene');
     picks.add('html-link-hygiene');
     picks.add('cross-origin-isolation');
+    picks.add('subresource-thirdparty-audit');
+    picks.add('supply-chain-tech-fingerprint');
+    picks.add('privacy-consent-tracker-audit');
+    picks.add('pwa-manifest-serviceworker-audit');
+    picks.add('security-txt-auditor');
+    picks.add('robots-sitemap-hygiene');
   }
   if (ct.includes('application/json') || ct.includes('+json')) {
     picks.add('json-schema-check');
     picks.add('openapi-contract-check');
+    picks.add('api-auth-hygiene');
+    picks.add('graphql-api-hygiene');
     picks.add('cors-samesite-auditor');
     picks.add('rate-limit-hygiene');
   }
@@ -1308,6 +1997,7 @@ function autoSelectModulesForContext(ctx) {
   }
   if (ctx.dnsPosture && !ctx.dnsPosture.skipped) {
     picks.add('dns-email-auth-check');
+    picks.add('dns-advanced-posture');
   }
   return [...picks];
 }
@@ -1330,7 +2020,7 @@ function runActiveModules(ctx, installedModules) {
         const key = `${f.severity}|${f.item}`;
         if (!seenFindingKeys.has(key)) {
           seenFindingKeys.add(key);
-          allFindings.push({ ...f, module_id: mod.id, module_name: mod.name });
+          allFindings.push(enrichFindingWithCompliance({ ...f, module_id: mod.id, module_name: mod.name }));
         }
       }
       moduleResults.push({
@@ -1359,6 +2049,7 @@ function runActiveModules(ctx, installedModules) {
 
   const owasp = computeOwaspScore(allFindings);
   const hardeningSnippets = generateHardeningSnippets(ctx, allFindings);
+  const complianceMatrix = buildComplianceMatrix(allFindings);
   return {
     executed_count: moduleResults.length,
     skipped_count: installedModules.length - activeList.length,
@@ -1366,7 +2057,8 @@ function runActiveModules(ctx, installedModules) {
     findings: allFindings,
     owasp_score: owasp.score,
     owasp_grade: owasp.grade,
-    hardening_snippets: hardeningSnippets
+    hardening_snippets: hardeningSnippets,
+    compliance_matrix: complianceMatrix
   };
 }
 
@@ -1375,6 +2067,7 @@ module.exports = {
   runActiveModules,
   autoSelectModulesForContext,
   computeOwaspScore,
+  computeInspectionDelta,
   shannonEntropy,
   analyzeCspHeader,
   generateHardeningSnippets,

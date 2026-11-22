@@ -33,7 +33,7 @@
       "name": "Cross-Origin Isolation (COOP/COEP/CORP)",
       "description": "Audita isolamento de contexto no navegador via COOP, COEP, CORP e Origin-Agent-Cluster",
       "category": "headers",
-      "active": false
+      "active": true
     },
     {
       "id": "clickjacking-guard",
@@ -47,7 +47,7 @@
       "name": "Rate-Limit & Abuse Controls Audit",
       "description": "Verifica cabeçalhos defensivos RateLimit-*/X-RateLimit-* e Retry-After em APIs públicas",
       "category": "headers",
-      "active": false
+      "active": true
     },
     {
       "id": "header-extractor",
@@ -61,21 +61,21 @@
       "name": "Passive Secret & Stack Detector",
       "description": "Detecta exposição passiva de chaves PEM/API, stack traces e metadados internos no corpo",
       "category": "privacy",
-      "active": false
+      "active": true
     },
     {
       "id": "static-script-reviewer",
       "name": "Static Resource Reviewer",
       "description": "Revisão passiva de Subresource Integrity (SRI) e mixed-content em scripts externos",
       "category": "analysis",
-      "active": false
+      "active": true
     },
     {
       "id": "html-link-hygiene",
       "name": "HTML Links, Tabnabbing & Meta Hygiene",
       "description": "Audita links target=_blank sem rel=noopener, iframes sem sandbox e metadados HTML",
       "category": "privacy",
-      "active": false
+      "active": true
     },
     {
       "id": "token-entropy",
@@ -124,28 +124,28 @@
       "name": "Local REST API",
       "description": "Expõe endpoints REST locais da console para automação interna e QA",
       "category": "platform",
-      "active": false
+      "active": true
     },
     {
       "id": "runtime-header-review",
       "name": "Runtime Disclosure Review",
       "description": "Identifica cabeçalhos que divulgam versões de servidores, frameworks e meta generator",
       "category": "privacy",
-      "active": false
+      "active": true
     },
     {
       "id": "cdn-cache-review",
       "name": "CDN & Cache-Control Review",
       "description": "Verifica diretivas Cache-Control, Pragma, ETag e cabeçalhos de proxy reverso/CDN",
       "category": "headers",
-      "active": false
+      "active": true
     },
     {
       "id": "ingress-hygiene",
       "name": "Ingress & Gateway Hygiene",
       "description": "Audita exposição de cabeçalhos de roteamento, proxy e balanceadores",
       "category": "privacy",
-      "active": false
+      "active": true
     },
     {
       "id": "json-schema-check",
@@ -159,7 +159,7 @@
       "name": "OpenAPI & API Contract Validator",
       "description": "Audita contratos OpenAPI 3.x / Swagger 2.0 (versão, servidores HTTPS, securitySchemes e rotas)",
       "category": "analysis",
-      "active": false
+      "active": true
     },
     {
       "id": "cert-inspector",
@@ -173,35 +173,35 @@
       "name": "TLS Cipher & Protocol Hardening",
       "description": "Audita força da suíte criptográfica AEAD/TLS 1.3, SANs, tempo de vida do cert e prontidão HSTS preload",
       "category": "tls",
-      "active": false
+      "active": true
     },
     {
       "id": "form-hygiene",
       "name": "Form & Referrer Hygiene",
       "description": "Verifica Referrer-Policy, Permissions-Policy e segurança de atributos action em formulários",
       "category": "headers",
-      "active": false
+      "active": true
     },
     {
       "id": "dns-email-auth-check",
       "name": "DNS & Email Posture (CAA/SPF/DMARC)",
       "description": "Consulta registros DNS públicos passivos (CAA, SPF e DMARC) para postura defensiva do domínio",
       "category": "compliance",
-      "active": false
+      "active": true
     },
     {
       "id": "host-inventory",
       "name": "Session Host Inventory",
       "description": "Consolida lista de hosts, TLS e notas OWASP inspecionados na sessão",
       "category": "platform",
-      "active": false
+      "active": true
     },
     {
       "id": "async-webhook-monitor",
       "name": "Async Callback Diagnostics",
       "description": "Valida latência, cabeçalhos Allow e políticas defensivas de endpoints de callback/webhook",
       "category": "analysis",
-      "active": false
+      "active": true
     },
     {
       "id": "owasp-compliance",
@@ -209,6 +209,90 @@
       "description": "Calcula conformidade OWASP (0–100 / A–F), snippets de hardening e relatórios PDF/HTML/MD/JSON",
       "category": "compliance",
       "active": true
+    },
+    {
+      "id": "security-txt-auditor",
+      "name": "RFC 9116 security.txt Auditor",
+      "description": "Verifica presença, validade de Expires, Contact, Encryption e Policy em /.well-known/security.txt",
+      "category": "compliance",
+      "active": false
+    },
+    {
+      "id": "robots-sitemap-hygiene",
+      "name": "Robots.txt & Exposure Hygiene",
+      "description": "Audita /robots.txt contra divulgação passiva de rotas internas/administrativas e valida Sitemap",
+      "category": "privacy",
+      "active": false
+    },
+    {
+      "id": "redirect-chain-auditor",
+      "name": "Redirect Chain & HTTPS Upgrade",
+      "description": "Rastreia cadeia de redirecionamentos (até 5 saltos), valida upgrade 301/308 e detecta downgrade HTTPS→HTTP",
+      "category": "tls",
+      "active": false
+    },
+    {
+      "id": "dns-advanced-posture",
+      "name": "DNS Avançado (MX / MTA-STS / DKIM)",
+      "description": "Consulta registros DNS passivos de transporte e autenticação de e-mail (MX, _mta-sts e seletores DKIM)",
+      "category": "compliance",
+      "active": false
+    },
+    {
+      "id": "subresource-thirdparty-audit",
+      "name": "Third-Party Supply-Chain Audit",
+      "description": "Inventaria origens externas carregadas em scripts, estilos, imagens e iframes (superfície de terceiros)",
+      "category": "privacy",
+      "active": false
+    },
+    {
+      "id": "api-auth-hygiene",
+      "name": "API Auth, Cache & Error Hygiene",
+      "description": "Audita WWW-Authenticate, Cache-Control em respostas sensíveis/API, métodos Allow inseguros e vazamento em erros",
+      "category": "analysis",
+      "active": false
+    },
+    {
+      "id": "tls-chain-ocsp-auditor",
+      "name": "TLS Chain & Key Strength Auditor",
+      "description": "Inspeciona cadeia completa de certificados TLS, tamanho de chave RSA/ECDSA, algoritmo de assinatura e escopo de SANs",
+      "category": "tls",
+      "active": false
+    },
+    {
+      "id": "dns-bimi-dangling-audit",
+      "name": "DNS Resilience, BIMI & CNAME Audit",
+      "description": "Verifica redundância NS, suporte IPv6 (AAAA), BIMI (_bimi) e possíveis CNAMEs órfãos (dangling DNS)",
+      "category": "compliance",
+      "active": false
+    },
+    {
+      "id": "graphql-api-hygiene",
+      "name": "GraphQL & API Docs Exposure",
+      "description": "Detecta passivamente exposição pública de GraphQL Playground, GraphiQL, Swagger UI, Redoc e metadados de API",
+      "category": "analysis",
+      "active": false
+    },
+    {
+      "id": "pwa-manifest-serviceworker-audit",
+      "name": "PWA Manifest & Service Worker",
+      "description": "Audita registro de Service Worker, transporte HTTPS e referências inseguras em Web App Manifests",
+      "category": "analysis",
+      "active": false
+    },
+    {
+      "id": "supply-chain-tech-fingerprint",
+      "name": "Outdated Frontend Libs Detector",
+      "description": "Identifica passivamente bibliotecas JS legadas/EOL expostas no HTML (jQuery 1/2, AngularJS 1, Bootstrap 3, Moment.js)",
+      "category": "privacy",
+      "active": false
+    },
+    {
+      "id": "privacy-consent-tracker-audit",
+      "name": "LGPD / GDPR Privacy & Trackers",
+      "description": "Audita trackers de terceiros, cookies pré-consentimento, link de Política de Privacidade e opt-out Topics/FLoC",
+      "category": "privacy",
+      "active": false
     }
   ]
 }

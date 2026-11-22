@@ -11,20 +11,32 @@ const path = require('path');
 const {
   runActiveModules,
   autoSelectModulesForContext,
+  computeInspectionDelta,
   analyzeCspHeader,
   validateJsonAgainstSchema,
   auditOpenApiSpec
 } = require('./module_engine');
+const {
+  filterFindingsBySeverity,
+  computeReportSummary,
+  buildValidPdfBuffer,
+  buildHtmlReport,
+  buildMarkdownReport,
+  buildSarifReport,
+  buildCsvReport
+} = require('./report_generator');
+const { buildComplianceMatrix } = require('./compliance_mapper');
+const { createMonitorEngine } = require('./monitor_engine');
 
 const APP_NAME = 'Aegis Web Console';
 const APP_SLUG = 'aegis-web';
+const APP_VERSION = '3.0.0';
 const PORT = Number(process.env.PORT) || 3002;
 const ALLOWED_MODES = new Set(['manual', 'ai-automation']);
 const ALLOWED_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
-const ALLOWED_AI_TYPES = new Set(['ollama', 'none']);
+const ALLOWED_AI_TYPES = new Set(['ollama', 'openai', 'anthropic', 'none']);
 const ALLOWED_CUSTOM_HEADERS = new Set(['accept', 'accept-language', 'origin', 'cache-control']);
 const MODEL_RE = /^[a-zA-Z0-9._:/-]{1,128}$/;
-const SEVERITY_RANK = { info: 1, low: 2, medium: 3, high: 4 };
 
 const PRESET_SETS = {
   essential: new Set([
@@ -50,6 +62,8 @@ const PRESET_SETS = {
     'http-history',
     'json-schema-check',
     'openapi-contract-check',
+    'api-auth-hygiene',
+    'graphql-api-hygiene',
     'cors-samesite-auditor',
     'rate-limit-hygiene',
     'hsts-tls-checker',
@@ -69,6 +83,8 @@ const PRESET_SETS = {
     'hsts-tls-checker',
     'cert-inspector',
     'tls-cipher-hardening',
+    'tls-chain-ocsp-auditor',
+    'redirect-chain-auditor',
     'cookie-session-auditor',
     'cors-samesite-auditor',
     'cross-origin-isolation',
@@ -77,20 +93,35 @@ const PRESET_SETS = {
     'form-hygiene',
     'static-script-reviewer',
     'html-link-hygiene',
+    'subresource-thirdparty-audit',
+    'supply-chain-tech-fingerprint',
+    'privacy-consent-tracker-audit',
+    'pwa-manifest-serviceworker-audit',
     'runtime-header-review',
     'passive-leak-detector',
+    'robots-sitemap-hygiene',
     'cdn-cache-review',
     'ingress-hygiene',
     'json-schema-check',
     'openapi-contract-check',
+    'api-auth-hygiene',
+    'graphql-api-hygiene',
     'dns-email-auth-check',
+    'dns-advanced-posture',
+    'dns-bimi-dangling-audit',
+    'security-txt-auditor',
     'host-inventory',
     'owasp-compliance'
   ])
 };
 
-const MAX_HISTORY = 30;
+const MAX_HISTORY = 50;
+const MAX_BATCH_TARGETS = 15;
+const DATA_DIR = path.join(__dirname, 'data');
 const CONFIG_PATH = path.join(__dirname, 'ai_config.json');
+const SECRETS_PATH = process.env.AEGIS_SECRETS_PATH || path.join(DATA_DIR, 'ai_secrets.json');
+const SESSION_PATH = process.env.AEGIS_SESSION_PATH || path.join(DATA_DIR, 'session_store.json');
+const WATCHLIST_PATH = process.env.AEGIS_WATCHLIST_PATH || path.join(DATA_DIR, 'watchlist.json');
 const MODULES_PATH = path.join(__dirname, 'modules.json');
 const INDEX_PATH = path.join(__dirname, 'index.html');
 
@@ -104,12 +135,21 @@ let aiConfig = {
   ai_model: 'deepseek-v4-heretic:9b'
 };
 
+let aiSecrets = {
+  openai_api_key: '',
+  anthropic_api_key: ''
+};
+
 let modulesConfig = { installed: [] };
 
-function atomicWriteJson(filePath, data) {
+function atomicWriteJson(filePath, data, mode) {
+  fs.mkdirSync(path.dirname(filePath), { recursive: true });
   const tmpPath = `${filePath}.tmp`;
-  fs.writeFileSync(tmpPath, JSON.stringify(data, null, 2) + '\n', 'utf8');
+  fs.writeFileSync(tmpPath, JSON.stringify(data, null, 2) + '\n', mode ? { encoding: 'utf8', mode } : 'utf8');
   fs.renameSync(tmpPath, filePath);
+  if (mode) {
+    try { fs.chmodSync(filePath, mode); } catch {}
+  }
 }
 
 function isValidHttpUrl(input) {
@@ -144,15 +184,6 @@ function sanitizeFilenamePart(raw) {
   return cleaned || `${APP_SLUG}-report`;
 }
 
-function escapeHtml(str) {
-  return String(str ?? '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
-}
-
 function loadAiConfig() {
   try {
     const raw = fs.readFileSync(CONFIG_PATH, 'utf8');
@@ -173,6 +204,59 @@ function loadAiConfig() {
 
 function saveAiConfig() {
   atomicWriteJson(CONFIG_PATH, aiConfig);
+}
+
+function loadAiSecrets() {
+  try {
+    if (!fs.existsSync(SECRETS_PATH)) return;
+    const parsed = JSON.parse(fs.readFileSync(SECRETS_PATH, 'utf8'));
+    if (parsed && typeof parsed === 'object') {
+      if (typeof parsed.openai_api_key === 'string') aiSecrets.openai_api_key = parsed.openai_api_key.trim();
+      if (typeof parsed.anthropic_api_key === 'string') aiSecrets.anthropic_api_key = parsed.anthropic_api_key.trim();
+    }
+  } catch {
+    // ignore unreadable secrets file
+  }
+}
+
+function saveAiSecrets() {
+  atomicWriteJson(SECRETS_PATH, aiSecrets, 0o600);
+}
+
+function getEffectiveAiApiKey(provider) {
+  if (provider === 'openai') return aiSecrets.openai_api_key || String(process.env.OPENAI_API_KEY || '').trim();
+  if (provider === 'anthropic') return aiSecrets.anthropic_api_key || String(process.env.ANTHROPIC_API_KEY || '').trim();
+  return '';
+}
+
+function loadSessionStore() {
+  try {
+    if (!fs.existsSync(SESSION_PATH)) return;
+    const parsed = JSON.parse(fs.readFileSync(SESSION_PATH, 'utf8'));
+    if (parsed && Array.isArray(parsed.history)) {
+      inspectionHistory = parsed.history.slice(0, MAX_HISTORY);
+    }
+    if (parsed && Array.isArray(parsed.hosts)) {
+      hostInventory.clear();
+      for (const h of parsed.hosts) {
+        if (h && h.host) hostInventory.set(h.host, h);
+      }
+    }
+  } catch (err) {
+    console.warn('Iniciando sessão limpa:', err.message);
+  }
+}
+
+function saveSessionStore() {
+  try {
+    atomicWriteJson(SESSION_PATH, {
+      updated_at: new Date().toISOString(),
+      history: inspectionHistory.slice(0, MAX_HISTORY),
+      hosts: [...hostInventory.values()]
+    });
+  } catch (err) {
+    console.warn('Falha ao persistir sessão:', err.message);
+  }
 }
 
 function loadModules() {
@@ -215,8 +299,8 @@ function applyModuleSelection(selectedIds) {
   return [...chosen];
 }
 
-// Consulta DNS pública estritamente passiva (CAA, SPF e DMARC) com timeout curto
-async function fetchPassiveDnsPosture(hostname) {
+// Consulta DNS pública estritamente passiva (CAA, SPF, DMARC + opcional MX/MTA-STS/DKIM + NS/AAAA/BIMI/CNAME)
+async function fetchPassiveDnsPosture(hostname, includeAdvanced = false, includeResilience = false) {
   const host = String(hostname || '').trim().toLowerCase().replace(/\.$/, '');
   if (!host || net.isIP(host) !== 0 || host === 'localhost' || host.endsWith('.local') || !host.includes('.')) {
     return { skipped: true, reason: 'Alvo IP ou hostname local (sem DNS público)' };
@@ -238,13 +322,150 @@ async function fetchPassiveDnsPosture(hostname) {
   const dmarc = flatDmarc.find(t => /^v=dmarc1\b/i.test(t.trim())) || null;
   const caa = Array.isArray(caaRes) ? caaRes.map(r => `${r.critical || 0} ${r.issue ? `issue "${r.issue}"` : (r.issuewild ? `issuewild "${r.issuewild}"` : JSON.stringify(r))}`) : [];
 
-  return {
+  const result = {
     skipped: false,
     domain: host,
     caa,
     spf,
-    dmarc
+    dmarc,
+    advancedChecked: false,
+    resilienceChecked: false
   };
+
+  if (includeAdvanced) {
+    const commonSelectors = ['default', 'google', 'selector1', 'selector2', 'k1'];
+    const [mxRes, mtaStsRes, ...dkimResList] = await Promise.all([
+      withTimeout(dns.resolveMx(host), 2500),
+      withTimeout(dns.resolveTxt(`_mta-sts.${host}`), 2500),
+      ...commonSelectors.map(sel => withTimeout(dns.resolveTxt(`${sel}._domainkey.${host}`), 2000))
+    ]);
+    const mx = Array.isArray(mxRes) ? mxRes.sort((a, b) => a.priority - b.priority).map(r => `${r.priority} ${r.exchange}`) : [];
+    const flatMta = Array.isArray(mtaStsRes) ? mtaStsRes.map(chunks => chunks.join('')) : [];
+    const mtaSts = flatMta.find(t => /^v=STSv1\b/i.test(t.trim())) || null;
+    const dkimSelectors = [];
+    dkimResList.forEach((res, idx) => {
+      const flat = Array.isArray(res) ? res.map(c => c.join('')) : [];
+      if (flat.some(t => /v=DKIM1|p=/i.test(t))) dkimSelectors.push(commonSelectors[idx]);
+    });
+    result.advancedChecked = true;
+    result.mx = mx;
+    result.mtaSts = mtaSts;
+    result.dkimSelectors = dkimSelectors;
+  }
+
+  if (includeResilience) {
+    const [nsRes, aaaaRes, cnameRes, bimiRes] = await Promise.all([
+      withTimeout(dns.resolveNs(host), 2500),
+      withTimeout(dns.resolve6(host), 2500),
+      withTimeout(dns.resolveCname(host), 2000),
+      withTimeout(dns.resolveTxt(`default._bimi.${host}`), 2000)
+    ]);
+    const cnames = Array.isArray(cnameRes) ? cnameRes : [];
+    let danglingCnameRisk = false;
+    if (cnames.length > 0) {
+      const targetResolve = await withTimeout(dns.resolve4(cnames[0]), 2000);
+      const targetResolve6 = await withTimeout(dns.resolve6(cnames[0]), 2000);
+      if (!targetResolve && !targetResolve6) danglingCnameRisk = true;
+    }
+    const flatBimi = Array.isArray(bimiRes) ? bimiRes.map(chunks => chunks.join('')) : [];
+    result.resilienceChecked = true;
+    result.ns = Array.isArray(nsRes) ? nsRes : [];
+    result.aaaa = Array.isArray(aaaaRes) ? aaaaRes : [];
+    result.cname = cnames;
+    result.bimi = flatBimi.find(t => /^v=BIMI1\b/i.test(t.trim())) || null;
+    result.danglingCnameRisk = danglingCnameRisk;
+  }
+
+  return result;
+}
+
+// Requisição HTTP passiva auxiliar para /.well-known/security.txt e /robots.txt (max 32KB, timeout curto)
+function fetchSmallPassiveResource(targetUrl, hopsLeft = 2) {
+  return new Promise((resolve) => {
+    const lib = targetUrl.protocol === 'https:' ? https : http;
+    const req = lib.request(
+      targetUrl,
+      {
+        method: 'GET',
+        timeout: 4500,
+        rejectUnauthorized: true,
+        headers: { 'User-Agent': 'AegisWebConsole-PassiveAudit/2.0', 'Accept': 'text/plain,*/*;q=0.5' }
+      },
+      (res) => {
+        const sc = res.statusCode || 0;
+        const loc = res.headers && res.headers.location;
+        if (hopsLeft > 0 && [301, 302, 303, 307, 308].includes(sc) && loc) {
+          res.resume();
+          try {
+            const nextUrl = new URL(loc, targetUrl);
+            if ((nextUrl.protocol === 'http:' || nextUrl.protocol === 'https:') && nextUrl.hostname === targetUrl.hostname) {
+              return resolve(fetchSmallPassiveResource(nextUrl, hopsLeft - 1));
+            }
+          } catch {}
+        }
+        const chunks = [];
+        let bytes = 0;
+        const maxBytes = 32 * 1024;
+        res.on('data', chunk => {
+          if (bytes < maxBytes) chunks.push(chunk.subarray(0, Math.min(chunk.length, maxBytes - bytes)));
+          bytes += chunk.length;
+          if (bytes > 48 * 1024) res.destroy();
+        });
+        const done = () => {
+          const ct = String((res.headers && res.headers['content-type']) || '').toLowerCase();
+          const body = Buffer.concat(chunks).toString('utf8');
+          const looksHtmlFallback = ct.includes('text/html') && /<html[\s>]|<!doctype html/i.test(body.slice(0, 400));
+          resolve({
+            skipped: false,
+            found: sc >= 200 && sc < 300 && !looksHtmlFallback && body.trim().length > 0,
+            statusCode: sc,
+            url: targetUrl.href,
+            body
+          });
+        };
+        res.on('end', done);
+        res.on('close', () => { if (!res.complete) done(); });
+      }
+    );
+    req.on('timeout', () => { req.destroy(); resolve({ skipped: false, found: false, statusCode: null, url: targetUrl.href, body: '' }); });
+    req.on('error', () => resolve({ skipped: false, found: false, statusCode: null, url: targetUrl.href, body: '' }));
+    req.end();
+  });
+}
+
+async function fetchPassiveWithRedirects(startUrl, method = 'GET', customHeaders = {}, maxHops = 5) {
+  let currentUrl = startUrl;
+  const redirectChain = [];
+  let lastSnapshot = null;
+
+  for (let hop = 0; hop <= maxHops; hop++) {
+    const snap = await fetchPassiveSnapshot(currentUrl, method, customHeaders);
+    const loc = snap.headers && snap.headers.location ? snap.headers.location : null;
+    redirectChain.push({
+      url: currentUrl.href,
+      host: currentUrl.host,
+      protocol: currentUrl.protocol,
+      statusCode: snap.statusCode,
+      location: loc
+    });
+    lastSnapshot = snap;
+
+    if ([301, 302, 303, 307, 308].includes(snap.statusCode) && loc && hop < maxHops) {
+      try {
+        const nextUrl = new URL(loc, currentUrl);
+        if (nextUrl.protocol === 'http:' || nextUrl.protocol === 'https:') {
+          currentUrl = nextUrl;
+          continue;
+        }
+      } catch {
+        break;
+      }
+    }
+    break;
+  }
+
+  lastSnapshot.redirectChain = redirectChain;
+  return lastSnapshot;
 }
 
 // Requisição HTTP passiva controlada (GET / HEAD / OPTIONS) com captura de metadados TLS
@@ -286,7 +507,7 @@ function fetchPassiveSnapshot(targetUrl, method = 'GET', customHeaders = {}) {
         let tlsInfo = null;
         if (targetUrl.protocol === 'https:' && res.socket && typeof res.socket.getPeerCertificate === 'function') {
           try {
-            const cert = res.socket.getPeerCertificate();
+            const cert = res.socket.getPeerCertificate(true);
             const cipher = typeof res.socket.getCipher === 'function' ? res.socket.getCipher() : null;
             const proto = typeof res.socket.getProtocol === 'function' ? res.socket.getProtocol() : null;
             if (cert && Object.keys(cert).length > 0) {
@@ -297,6 +518,21 @@ function fetchPassiveSnapshot(targetUrl, method = 'GET', customHeaders = {}) {
               const sanList = cert.subjectaltname
                 ? String(cert.subjectaltname).split(',').map(s => s.trim()).filter(Boolean)
                 : [];
+              let chainDepth = 1;
+              let curCert = cert;
+              const seenFp = new Set([cert.fingerprint256 || cert.fingerprint || 'leaf']);
+              while (curCert && curCert.issuerCertificate && chainDepth < 8) {
+                const nxt = curCert.issuerCertificate;
+                const fp = nxt.fingerprint256 || nxt.fingerprint || '';
+                if (!fp || seenFp.has(fp)) break;
+                seenFp.add(fp);
+                chainDepth++;
+                curCert = nxt;
+              }
+              const selfSigned = Boolean(
+                cert.subject && cert.issuer && JSON.stringify(cert.subject) === JSON.stringify(cert.issuer)
+              );
+              const keyType = cert.asn1Curve ? 'EC' : (cert.modulus ? 'RSA' : null);
               tlsInfo = {
                 protocol: proto || null,
                 cipher: cipher ? cipher.name : null,
@@ -306,7 +542,12 @@ function fetchPassiveSnapshot(targetUrl, method = 'GET', customHeaders = {}) {
                 validTo: cert.valid_to || null,
                 daysRemaining,
                 sanCount: sanList.length,
-                sansSample: sanList.slice(0, 8)
+                sansSample: sanList.slice(0, 8),
+                keyType,
+                keyBits: cert.bits || null,
+                chainDepth,
+                selfSigned,
+                wildcardSan: sanList.some(s => s.includes('*.'))
               };
             }
           } catch {
@@ -359,282 +600,90 @@ function fetchPassiveSnapshot(targetUrl, method = 'GET', customHeaders = {}) {
   });
 }
 
-function filterFindingsBySeverity(findings, minSeverity) {
-  const minRank = SEVERITY_RANK[String(minSeverity || 'info').toLowerCase()] || 1;
-  return (findings || []).filter(f => (SEVERITY_RANK[String(f.severity || 'info').toLowerCase()] || 1) >= minRank);
-}
-
-// Gerador PDF 1.4 válido e independente com opções de personalização
-function pdfEscapeText(str) {
-  return String(str || '')
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/[^\x20-\x7E]/g, ' ')
-    .replace(/\\/g, '\\\\')
-    .replace(/\(/g, '\\(')
-    .replace(/\)/g, '\\)');
-}
-
-function wrapText(text, maxChars) {
-  const words = String(text || '').split(/\s+/);
-  const lines = [];
-  let cur = '';
-  for (const w of words) {
-    if (!cur) cur = w;
-    else if (cur.length + 1 + w.length <= maxChars) cur += ' ' + w;
-    else {
-      lines.push(cur);
-      cur = w;
-    }
-  }
-  if (cur) lines.push(cur);
-  return lines.length ? lines : [''];
-}
-
-function buildValidPdfBuffer(opts) {
-  const lines = [];
-  lines.push({ text: opts.title, size: 15, bold: true });
-  lines.push({ text: `Organizacao: ${opts.org} | Classificacao: ${opts.classification}`, size: 9.5, bold: true });
-  lines.push({ text: `Gerado em: ${opts.generatedAt} | Filtro Severidade >= ${opts.minSeverity.toUpperCase()}`, size: 8.8, bold: false });
-  lines.push({ text: `Plataforma: ${APP_NAME} | Modo: ${currentMode} | IA: ${aiConfig.ai_type} (${aiConfig.ai_model})`, size: 8.8, bold: false });
-  lines.push({ text: '--------------------------------------------------------------------------', size: 9, bold: false });
-
-  if (opts.includeModules) {
-    const activeMods = modulesConfig.installed.filter(m => m.active);
-    lines.push({ text: `Modulos Defensivos Ativos (${activeMods.length}/${modulesConfig.installed.length}):`, size: 11, bold: true });
-    if (activeMods.length === 0) {
-      lines.push({ text: '  - Nenhum modulo ativo no momento.', size: 9, bold: false });
-    } else {
-      for (const mod of activeMods) {
-        for (const wrapped of wrapText(`- ${mod.name} (${mod.id} | ${mod.category}): ${mod.description}`, 84)) {
-          lines.push({ text: `  ${wrapped}`, size: 8.6, bold: false });
-        }
-      }
-    }
-    lines.push({ text: '', size: 7, bold: false });
-  }
-
-  lines.push({ text: `Inspecoes Passivas OWASP (${inspectionHistory.length}):`, size: 11, bold: true });
-  if (inspectionHistory.length === 0) {
-    lines.push({ text: '  - Nenhuma inspecao executada nesta sessao.', size: 9, bold: false });
-  } else {
-    for (const insp of inspectionHistory.slice(0, 10)) {
-      const filtFindings = filterFindingsBySeverity(insp.findings, opts.minSeverity);
-      lines.push({
-        text: `  * [${insp.method} ${insp.status_code}] ${insp.target} (${insp.duration_ms}ms) | OWASP: ${insp.owasp_grade} (${insp.owasp_score}/100) | Achados: ${filtFindings.length}`,
-        size: 9,
-        bold: true
-      });
-      if (insp.tls_info) {
-        lines.push({
-          text: `      TLS: ${insp.tls_info.protocol || 'n/a'} / ${insp.tls_info.cipher || 'n/a'} | CN: ${insp.tls_info.subject || 'n/a'} | Expira em: ${insp.tls_info.daysRemaining ?? '?'}d`,
-          size: 8.2,
-          bold: false
-        });
-      }
-      if (insp.dns_posture && !insp.dns_posture.skipped) {
-        lines.push({
-          text: `      DNS: CAA=${insp.dns_posture.caa.length ? 'OK' : 'ausente'} | SPF=${insp.dns_posture.spf ? 'OK' : 'ausente'} | DMARC=${insp.dns_posture.dmarc ? 'OK' : 'ausente'}`,
-          size: 8.2,
-          bold: false
-        });
-      }
-      for (const f of filtFindings.slice(0, 12)) {
-        for (const wrapped of wrapText(`[${f.severity.toUpperCase()} | ${f.module_id}] ${f.item} -> ${f.recommendation}`, 80)) {
-          lines.push({ text: `      ${wrapped}`, size: 8.2, bold: false });
-        }
-      }
-      if (opts.includeSnippets && insp.hardening_snippets && insp.hardening_snippets.missing_count > 0) {
-        lines.push({ text: '      Hardening Nginx sugerido:', size: 8.3, bold: true });
-        for (const sLine of String(insp.hardening_snippets.nginx || '').split('\n').slice(0, 10)) {
-          for (const wrapped of wrapText(sLine, 78)) {
-            lines.push({ text: `        ${wrapped}`, size: 7.8, bold: false });
-          }
-        }
-      }
-      if (opts.includeHeaders && insp.response_headers) {
-        lines.push({ text: '      Cabecalhos Recebidos (amostra):', size: 8.3, bold: true });
-        for (const [hk, hv] of Object.entries(insp.response_headers).slice(0, 12)) {
-          for (const wrapped of wrapText(`${hk}: ${hv}`, 78)) {
-            lines.push({ text: `        ${wrapped}`, size: 7.8, bold: false });
-          }
-        }
-      }
-    }
-  }
-
-  const pages = [];
-  let currentPageOps = [];
-  let y = 790;
-  for (const item of lines) {
-    const lineH = item.size + 4.8;
-    if (y - lineH < 50) {
-      pages.push(currentPageOps.join('\n'));
-      currentPageOps = [];
-      y = 790;
-    }
-    const fontKey = item.bold ? '/F2' : '/F1';
-    currentPageOps.push(`BT ${fontKey} ${item.size} Tf 48 ${y} Td (${pdfEscapeText(item.text)}) Tj ET`);
-    y -= lineH;
-  }
-  if (currentPageOps.length || pages.length === 0) pages.push(currentPageOps.join('\n'));
-
-  const objects = [];
-  const addObj = (content) => {
-    objects.push(content);
-    return objects.length;
-  };
-
-  const fontRegularId = addObj('<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>');
-  const fontBoldId = addObj('<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>');
-  const pageIds = [];
-  const pagesObjId = addObj('');
-
-  for (const stream of pages) {
-    const streamBuf = Buffer.from(stream, 'ascii');
-    const contentId = addObj(`<< /Length ${streamBuf.length} >>\nstream\n${stream}\nendstream`);
-    const pageId = addObj(
-      `<< /Type /Page /Parent ${pagesObjId} 0 R /MediaBox [0 0 595 842] ` +
-      `/Resources << /Font << /F1 ${fontRegularId} 0 R /F2 ${fontBoldId} 0 R >> >> ` +
-      `/Contents ${contentId} 0 R >>`
-    );
-    pageIds.push(pageId);
-  }
-
-  objects[pagesObjId - 1] = `<< /Type /Pages /Kids [${pageIds.map(id => `${id} 0 R`).join(' ')}] /Count ${pageIds.length} >>`;
-  const catalogId = addObj(`<< /Type /Catalog /Pages ${pagesObjId} 0 R >>`);
-  const infoId = addObj(`<< /Title (${pdfEscapeText(opts.title)}) /Author (${pdfEscapeText(opts.org)}) /Producer (${pdfEscapeText(APP_NAME)}) >>`);
-
-  let pdf = '%PDF-1.4\n';
-  const offsets = [0];
-  for (let i = 0; i < objects.length; i++) {
-    offsets.push(Buffer.byteLength(pdf, 'utf8'));
-    pdf += `${i + 1} 0 obj\n${objects[i]}\nendobj\n`;
-  }
-  const xrefOffset = Buffer.byteLength(pdf, 'utf8');
-  pdf += `xref\n0 ${objects.length + 1}\n`;
-  pdf += '0000000000 65535 f \n';
-  for (let i = 1; i <= objects.length; i++) {
-    pdf += `${String(offsets[i]).padStart(10, '0')} 00000 n \n`;
-  }
-  pdf += `trailer\n<< /Size ${objects.length + 1} /Root ${catalogId} 0 R /Info ${infoId} 0 R >>\nstartxref\n${xrefOffset}\n%%EOF\n`;
-  return Buffer.from(pdf, 'utf8');
-}
-
-function buildHtmlReport(opts) {
-  const activeMods = modulesConfig.installed.filter(m => m.active);
-  const inspBlocks = inspectionHistory.map(insp => {
-    const filt = filterFindingsBySeverity(insp.findings, opts.minSeverity);
-    const findingsHtml = filt.length
-      ? `<ul>${filt.map(f => `<li><span class="sev sev-${escapeHtml(f.severity)}">${escapeHtml(f.severity.toUpperCase())}</span> <strong>[${escapeHtml(f.module_id)}]</strong> ${escapeHtml(f.item)} — <em>${escapeHtml(f.recommendation)}</em></li>`).join('')}</ul>`
-      : '<p>Nenhuma observação acima da severidade selecionada.</p>';
-    const tlsHtml = insp.tls_info
-      ? `<p><strong>TLS:</strong> ${escapeHtml(insp.tls_info.protocol || 'n/a')} (${escapeHtml(insp.tls_info.cipher || 'n/a')}) · CN: ${escapeHtml(insp.tls_info.subject || 'n/a')} · Expira em ${escapeHtml(insp.tls_info.daysRemaining ?? '?')} dias</p>`
-      : '';
-    const dnsHtml = insp.dns_posture && !insp.dns_posture.skipped
-      ? `<p><strong>Postura DNS:</strong> CAA=${insp.dns_posture.caa.length ? 'OK' : 'ausente'} · SPF=${insp.dns_posture.spf ? 'OK' : 'ausente'} · DMARC=${insp.dns_posture.dmarc ? 'OK' : 'ausente'}</p>`
-      : '';
-    const snippetsHtml = opts.includeSnippets && insp.hardening_snippets && insp.hardening_snippets.missing_count > 0
-      ? `<h4>Snippets de Hardening Sugeridos</h4><pre>${escapeHtml(insp.hardening_snippets.nginx)}</pre><pre>${escapeHtml(insp.hardening_snippets.express)}</pre>`
-      : '';
-    const headersHtml = opts.includeHeaders && insp.response_headers
-      ? `<h4>Cabeçalhos HTTP Recebidos</h4><pre>${escapeHtml(Object.entries(insp.response_headers).map(([k, v]) => `${k}: ${v}`).join('\n'))}</pre>`
-      : '';
-    return `<section class="card"><h3>[${escapeHtml(insp.method)} ${escapeHtml(insp.status_code)}] ${escapeHtml(insp.target)} <span class="grade">OWASP ${escapeHtml(insp.owasp_grade)} (${escapeHtml(insp.owasp_score)}/100)</span></h3><p>Latência: ${escapeHtml(insp.duration_ms)}ms · Módulos executados: ${escapeHtml(insp.executed_modules_count)}</p>${tlsHtml}${dnsHtml}${findingsHtml}${snippetsHtml}${headersHtml}</section>`;
-  }).join('') || '<section class="card"><p>Nenhuma inspeção executada nesta sessão.</p></section>';
-
-  const modsHtml = opts.includeModules
-    ? `<section class="card"><h2>Módulos Defensivos Ativos (${activeMods.length}/${modulesConfig.installed.length})</h2><ul>${activeMods.map(m => `<li><strong>${escapeHtml(m.name)}</strong> (${escapeHtml(m.id)} · ${escapeHtml(m.category)}): ${escapeHtml(m.description)}</li>`).join('') || '<li>Nenhum módulo ativo.</li>'}</ul></section>`
-    : '';
-
-  return `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"><title>${escapeHtml(opts.title)}</title><style>body{font-family:system-ui,sans-serif;max-width:980px;margin:2rem auto;padding:0 1rem;color:#0f172a;background:#f8fafc}header{background:#0b132b;color:#fff;padding:1.4rem;border-radius:8px;margin-bottom:1.2rem}header h1{margin:0 0 .4rem;font-size:1.4rem}.meta{font-size:.86rem;color:#cbd5e1}.card{background:#fff;border:1px solid #e2e8f0;border-left:4px solid #0f766e;border-radius:8px;padding:1rem 1.2rem;margin-bottom:1rem}.grade{background:#0f766e;color:#fff;padding:.15rem .55rem;border-radius:999px;font-size:.8rem;margin-left:.5rem}.sev{display:inline-block;padding:.1rem .45rem;border-radius:4px;font-size:.75rem;font-weight:700}.sev-high{background:#fee2e2;color:#991b1b}.sev-medium{background:#ffedd5;color:#9a3412}.sev-low{background:#fef3c7;color:#92400e}.sev-info{background:#e0f2fe;color:#075985}pre{background:#0b132b;color:#e2e8f0;padding:.8rem;border-radius:6px;overflow-x:auto;font-size:.8rem}@media print{body{background:#fff}}</style></head><body><header><h1>${escapeHtml(opts.title)}</h1><div class="meta">Organização: ${escapeHtml(opts.org)} · Classificação: ${escapeHtml(opts.classification)} · Gerado em: ${escapeHtml(opts.generatedAt)} · Severidade mínima: ${escapeHtml(opts.minSeverity.toUpperCase())}</div></header>${modsHtml}${inspBlocks}</body></html>`;
-}
-
-function buildMarkdownReport(opts) {
-  const lines = [
-    `# ${opts.title}`,
-    '',
-    `- **Organização:** ${opts.org}`,
-    `- **Classificação:** ${opts.classification}`,
-    `- **Plataforma:** ${APP_NAME} (Modo: \`${currentMode}\`)`,
-    `- **Gerado em:** ${opts.generatedAt}`,
-    `- **Filtro de severidade mínima:** \`${opts.minSeverity.toUpperCase()}\``,
-    ''
-  ];
-
-  if (opts.includeModules) {
-    const activeMods = modulesConfig.installed.filter(m => m.active);
-    lines.push(`## Módulos Defensivos Ativos (${activeMods.length}/${modulesConfig.installed.length})`, '');
-    for (const m of activeMods) {
-      lines.push(`- **${m.name}** (\`${m.id}\` · ${m.category}): ${m.description}`);
-    }
-    lines.push('');
-  }
-
-  lines.push(`## Inspeções Passivas OWASP (${inspectionHistory.length})`, '');
-  if (inspectionHistory.length === 0) {
-    lines.push('_Nenhuma inspeção executada nesta sessão._');
-  } else {
-    for (const insp of inspectionHistory) {
-      const filt = filterFindingsBySeverity(insp.findings, opts.minSeverity);
-      lines.push(`### [${insp.method} ${insp.status_code}] ${insp.target}`);
-      lines.push(`- **Nota OWASP:** **${insp.owasp_grade} (${insp.owasp_score}/100)** | **Latência:** ${insp.duration_ms}ms | **Módulos executados:** ${insp.executed_modules_count}`);
-      if (insp.tls_info) {
-        lines.push(`- **TLS:** ${insp.tls_info.protocol || 'n/a'} / ${insp.tls_info.cipher || 'n/a'} | CN: \`${insp.tls_info.subject || 'n/a'}\` | Expira em: ${insp.tls_info.daysRemaining ?? '?'} dias`);
-      }
-      if (insp.dns_posture && !insp.dns_posture.skipped) {
-        lines.push(`- **DNS:** CAA=${insp.dns_posture.caa.length ? 'OK' : 'ausente'} | SPF=${insp.dns_posture.spf ? 'OK' : 'ausente'} | DMARC=${insp.dns_posture.dmarc ? 'OK' : 'ausente'}`);
-      }
-      lines.push('');
-      if (filt.length > 0) {
-        lines.push('#### Observações & Recomendações');
-        for (const f of filt) {
-          lines.push(`- **[${f.severity.toUpperCase()} · \`${f.module_id}\`]** ${f.item} — ${f.recommendation}`);
-        }
-        lines.push('');
-      }
-      if (opts.includeSnippets && insp.hardening_snippets && insp.hardening_snippets.missing_count > 0) {
-        lines.push('#### Hardening Nginx Sugerido', '```nginx', insp.hardening_snippets.nginx, '```', '');
-      }
-      if (opts.includeHeaders && insp.response_headers) {
-        lines.push('#### Cabeçalhos HTTP Recebidos', '```http');
-        for (const [k, v] of Object.entries(insp.response_headers)) lines.push(`${k}: ${v}`);
-        lines.push('```', '');
-      }
-    }
-  }
-  return lines.join('\n');
-}
-
 async function callAI(message, config) {
-  if (config.ai_type !== 'ollama') {
-    throw new Error('Somente provedor local Ollama está habilitado nesta instalação standalone.');
-  }
-  const model = config.ai_model || 'deepseek-v4-heretic:9b';
-  const endpoint = (config.ai_endpoint || 'http://127.0.0.1:11434').replace(/\/+$/, '');
-
-  const prompt = [
+  const systemPrompt = [
     `Você é o assistente defensivo de engenharia web e OWASP da plataforma ${APP_NAME}.`,
     'Responda sempre em Português do Brasil (pt-BR), de forma direta, técnica e objetiva.',
-    'Forneça apenas recomendações defensivas, análise de cabeçalhos, cookies, TLS, OpenAPI e seleção enxuta de módulos defensivos; nunca gere payloads ofensivos.',
-    'Sempre recomende ativar apenas o subconjunto mínimo de módulos necessários para economizar CPU/memória.',
-    `Solicitação do operador: ${message}`
+    'Forneça apenas recomendações defensivas, análise de cabeçalhos, cookies, TLS, DNS, OpenAPI e seleção enxuta de módulos defensivos; nunca gere payloads ofensivos.',
+    'Sempre recomende ativar apenas o subconjunto mínimo de módulos necessários para economizar CPU/memória.'
   ].join('\n');
 
-  const resp = await fetch(`${endpoint}/api/generate`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ model, prompt, stream: false }),
-    signal: AbortSignal.timeout(45000)
-  });
+  if (config.ai_type === 'ollama') {
+    const model = config.ai_model || 'deepseek-v4-heretic:9b';
+    const endpoint = (config.ai_endpoint || 'http://127.0.0.1:11434').replace(/\/+$/, '');
+    const resp = await fetch(`${endpoint}/api/generate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ model, prompt: `${systemPrompt}\nSolicitação do operador: ${message}`, stream: false }),
+      signal: AbortSignal.timeout(45000)
+    });
+    if (!resp.ok) throw new Error(`Endpoint Ollama retornou HTTP ${resp.status}`);
+    const data = await resp.json();
+    return data.response || '';
+  }
 
-  if (!resp.ok) throw new Error(`Endpoint Ollama retornou HTTP ${resp.status}`);
-  const data = await resp.json();
-  return data.response || '';
+  if (config.ai_type === 'openai') {
+    const apiKey = getEffectiveAiApiKey('openai');
+    if (!apiKey) throw new Error('Chave de API OpenAI não configurada. Salve a chave no painel IA ou defina OPENAI_API_KEY.');
+    const model = config.ai_model || 'gpt-4.1-mini';
+    const endpoint = (config.ai_endpoint || 'https://api.openai.com/v1').replace(/\/+$/, '');
+    const resp = await fetch(`${endpoint}/chat/completions`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
+      body: JSON.stringify({
+        model,
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: String(message) }
+        ],
+        max_tokens: 900
+      }),
+      signal: AbortSignal.timeout(45000)
+    });
+    if (!resp.ok) {
+      const errTxt = await resp.text().catch(() => '');
+      throw new Error(`Endpoint OpenAI retornou HTTP ${resp.status}${errTxt ? `: ${errTxt.slice(0, 180)}` : ''}`);
+    }
+    const data = await resp.json();
+    return (data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content) || '';
+  }
+
+  if (config.ai_type === 'anthropic') {
+    const apiKey = getEffectiveAiApiKey('anthropic');
+    if (!apiKey) throw new Error('Chave de API Anthropic não configurada. Salve a chave no painel IA ou defina ANTHROPIC_API_KEY.');
+    const model = config.ai_model || 'claude-sonnet-4-6';
+    const endpoint = (config.ai_endpoint || 'https://api.anthropic.com').replace(/\/+$/, '');
+    const resp = await fetch(`${endpoint}/v1/messages`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01'
+      },
+      body: JSON.stringify({
+        model,
+        max_tokens: 900,
+        system: systemPrompt,
+        messages: [{ role: 'user', content: String(message) }]
+      }),
+      signal: AbortSignal.timeout(45000)
+    });
+    if (!resp.ok) {
+      const errTxt = await resp.text().catch(() => '');
+      throw new Error(`Endpoint Anthropic retornou HTTP ${resp.status}${errTxt ? `: ${errTxt.slice(0, 180)}` : ''}`);
+    }
+    const data = await resp.json();
+    const blocks = Array.isArray(data.content) ? data.content : [];
+    return blocks.filter(b => b.type === 'text').map(b => b.text).join('\n');
+  }
+
+  throw new Error('IA está desativada na configuração atual.');
 }
 
 loadAiConfig();
+loadAiSecrets();
 loadModules();
+loadSessionStore();
 
 const app = express();
 app.disable('x-powered-by');
@@ -649,6 +698,10 @@ app.use((req, res, next) => {
   res.setHeader('Cross-Origin-Opener-Policy', 'same-origin');
   res.setHeader('Cross-Origin-Resource-Policy', 'same-origin');
   res.setHeader('Content-Security-Policy', "default-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'");
+  if (req.path.startsWith('/api/')) {
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+  }
   const start = Date.now();
   res.on('finish', () => {
     console.log(`${req.method} ${req.path} ${res.statusCode} ${Date.now() - start}ms`);
@@ -657,6 +710,7 @@ app.use((req, res, next) => {
 });
 
 app.get(['/', '/index.html'], (req, res) => {
+  res.setHeader('Cache-Control', 'no-cache');
   res.sendFile(INDEX_PATH);
 });
 
@@ -669,15 +723,20 @@ app.get(['/inspector', '/workbench', '/modules', '/inventory', '/ai', '/reports'
 app.get('/api/status', (req, res) => {
   const activeCount = modulesConfig.installed.filter(m => m.active).length;
   const last = inspectionHistory[0] || null;
+  const summary = computeReportSummary(inspectionHistory, [...hostInventory.values()], modulesConfig.installed, 'info');
+  const allFindings = inspectionHistory.flatMap(i => i.findings || []);
+  const wl = monitor.list().summary;
   res.json({
     app: APP_NAME,
     slug: APP_SLUG,
+    version: APP_VERSION,
     mode: currentMode,
     ai_active: aiConfig.ai_type !== 'none',
     ai_config: {
       ai_type: aiConfig.ai_type,
       ai_endpoint: aiConfig.ai_endpoint,
-      ai_model: aiConfig.ai_model
+      ai_model: aiConfig.ai_model,
+      api_key_set: Boolean(getEffectiveAiApiKey(aiConfig.ai_type))
     },
     modules_active: activeCount,
     modules_total: modulesConfig.installed.length,
@@ -685,6 +744,11 @@ app.get('/api/status', (req, res) => {
     hosts_count: hostInventory.size,
     last_grade: last ? last.owasp_grade : null,
     last_score: last ? last.owasp_score : null,
+    average_score: summary.average_owasp_score,
+    overall_grade: summary.overall_grade,
+    severity_counts: summary.severity_counts,
+    compliance_summary: buildComplianceMatrix(allFindings),
+    watchlist_summary: wl,
     timestamp: new Date().toISOString()
   });
 });
@@ -736,33 +800,78 @@ app.post('/api/qa/audit-csp', (req, res) => {
   res.json({ success: true, ...result });
 });
 
-// Configuração e chat IA local
+// Configuração e chat IA (Ollama Local, OpenAI/Compatível, Anthropic Claude ou Desativada)
 app.get('/api/ai/config', (req, res) => {
-  res.json({ success: true, config: aiConfig });
+  res.json({
+    success: true,
+    config: {
+      ...aiConfig,
+      api_key_set: Boolean(getEffectiveAiApiKey(aiConfig.ai_type)),
+      openai_key_set: Boolean(getEffectiveAiApiKey('openai')),
+      anthropic_key_set: Boolean(getEffectiveAiApiKey('anthropic'))
+    }
+  });
+});
+
+app.get('/api/ai/ollama-models', async (req, res) => {
+  const endpoint = String(req.query.endpoint || (aiConfig.ai_type === 'ollama' ? aiConfig.ai_endpoint : 'http://127.0.0.1:11434')).trim().replace(/\/+$/, '');
+  if (!isValidHttpUrl(endpoint)) {
+    return res.status(400).json({ error: 'Endpoint Ollama inválido.' });
+  }
+  try {
+    const resp = await fetch(`${endpoint}/api/tags`, { signal: AbortSignal.timeout(4000) });
+    if (!resp.ok) return res.status(502).json({ error: `Ollama retornou HTTP ${resp.status}` });
+    const data = await resp.json();
+    const models = Array.isArray(data.models) ? data.models.map(m => m.name).filter(Boolean) : [];
+    return res.json({ success: true, endpoint, models });
+  } catch (err) {
+    return res.status(502).json({ error: `Não foi possível conectar ao Ollama em ${endpoint}: ${err.message}` });
+  }
 });
 
 app.post('/api/ai/config', (req, res) => {
-  const { ai_type, ai_endpoint, ai_model } = req.body || {};
+  const { ai_type, ai_endpoint, ai_model, ai_api_key, clear_api_key } = req.body || {};
   if (ai_type !== undefined) {
     if (!ALLOWED_AI_TYPES.has(ai_type)) {
-      return res.status(400).json({ error: 'Tipo de IA inválido. Use "ollama" ou "none".' });
+      return res.status(400).json({ error: 'Tipo de IA inválido. Use "ollama", "openai", "anthropic" ou "none".' });
     }
     aiConfig.ai_type = ai_type;
   }
-  if (ai_endpoint !== undefined) {
+  if (ai_endpoint !== undefined && String(ai_endpoint).trim() !== '') {
     if (!isValidHttpUrl(ai_endpoint)) {
       return res.status(400).json({ error: 'Endpoint de IA inválido (use http:// ou https://).' });
     }
     aiConfig.ai_endpoint = String(ai_endpoint).replace(/\/+$/, '');
   }
-  if (ai_model !== undefined) {
+  if (ai_model !== undefined && String(ai_model).trim() !== '') {
     if (!MODEL_RE.test(String(ai_model))) {
       return res.status(400).json({ error: 'Nome de modelo inválido.' });
     }
     aiConfig.ai_model = String(ai_model);
   }
+  if (clear_api_key) {
+    if (aiConfig.ai_type === 'openai') aiSecrets.openai_api_key = '';
+    if (aiConfig.ai_type === 'anthropic') aiSecrets.anthropic_api_key = '';
+    saveAiSecrets();
+  } else if (typeof ai_api_key === 'string' && ai_api_key.trim().length > 0) {
+    if (aiConfig.ai_type === 'openai') {
+      aiSecrets.openai_api_key = ai_api_key.trim();
+      saveAiSecrets();
+    } else if (aiConfig.ai_type === 'anthropic') {
+      aiSecrets.anthropic_api_key = ai_api_key.trim();
+      saveAiSecrets();
+    }
+  }
   saveAiConfig();
-  res.json({ success: true, config: aiConfig });
+  res.json({
+    success: true,
+    config: {
+      ...aiConfig,
+      api_key_set: Boolean(getEffectiveAiApiKey(aiConfig.ai_type)),
+      openai_key_set: Boolean(getEffectiveAiApiKey('openai')),
+      anthropic_key_set: Boolean(getEffectiveAiApiKey('anthropic'))
+    }
+  });
 });
 
 app.post('/api/ai/chat', async (req, res) => {
@@ -802,10 +911,10 @@ app.post('/api/ai/recommend-modules', async (req, res) => {
   let selectedIds = [];
   let rationale = '';
 
-  if (aiConfig.ai_type === 'ollama') {
+  if (aiConfig.ai_type !== 'none') {
     try {
       const prompt = [
-        'Escolha entre 5 e 9 IDs de módulos defensivos desta lista que melhor atendam ao contexto informado (para evitar sobrecarga).',
+        'Escolha entre 5 e 10 IDs de módulos defensivos desta lista que melhor atendam ao contexto informado (para evitar sobrecarga).',
         'Retorne primeiro uma linha iniciando com "IDS:" seguida dos IDs separados por vírgula, e depois uma explicação curta em pt-BR.',
         `Catálogo:\n${catalog}`,
         `Contexto do operador: ${ctxText}`
@@ -825,7 +934,7 @@ app.post('/api/ai/recommend-modules', async (req, res) => {
         }
       }
     } catch (err) {
-      rationale = `Seleção determinística aplicada (IA local indisponível: ${err.message}).`;
+      rationale = `Seleção determinística aplicada (IA indisponível: ${err.message}).`;
     }
   }
 
@@ -922,83 +1031,123 @@ app.post('/api/modules/:id', (req, res) => {
 });
 
 // Motor de Inspeção Passiva Modular (executa APENAS os módulos defensivos ativos)
-app.post('/api/inspect/run', async (req, res) => {
-  const { target, mode, method, custom_headers } = req.body || {};
+async function executeSingleInspection({ target, mode, method, custom_headers, override_modules, record_in_session = true }) {
   const parsedUrl = normalizeTargetUrl(target);
   if (!parsedUrl) {
-    return res.status(400).json({ error: 'Informe uma URL ou hostname HTTP/HTTPS válido.' });
+    const err = new Error('Informe uma URL ou hostname HTTP/HTTPS válido.');
+    err.httpStatus = 400;
+    throw err;
   }
 
   const reqMethod = String(method || 'GET').toUpperCase();
   if (!ALLOWED_METHODS.has(reqMethod)) {
-    return res.status(400).json({ error: 'Método inválido. Use GET, HEAD ou OPTIONS (inspeção passiva).' });
+    const err = new Error('Método inválido. Use GET, HEAD ou OPTIONS (inspeção passiva).');
+    err.httpStatus = 400;
+    throw err;
   }
 
+  const activeCatalog = Array.isArray(override_modules) ? override_modules : modulesConfig.installed;
   const effectiveMode = ALLOWED_MODES.has(mode) ? mode : currentMode;
-  const dnsActive = effectiveMode === 'ai-automation' || modulesConfig.installed.some(m => m.id === 'dns-email-auth-check' && m.active);
+  const isModActive = (id) => effectiveMode === 'ai-automation' || activeCatalog.some(m => m.id === id && m.active);
+  const dnsBaseActive = isModActive('dns-email-auth-check');
+  const dnsAdvActive = isModActive('dns-advanced-posture');
+  const dnsResActive = isModActive('dns-bimi-dangling-audit');
+  const secTxtActive = isModActive('security-txt-auditor');
+  const robotsActive = isModActive('robots-sitemap-hygiene');
 
-  try {
-    const [snapshot, dnsPosture] = await Promise.all([
-      fetchPassiveSnapshot(parsedUrl, reqMethod, custom_headers),
-      dnsActive ? fetchPassiveDnsPosture(parsedUrl.hostname) : Promise.resolve({ skipped: true, reason: 'Módulo DNS inativo' })
-    ]);
-    snapshot.dnsPosture = dnsPosture;
+  const snapshot = await fetchPassiveWithRedirects(parsedUrl, reqMethod, custom_headers, 5);
+  const finalOrigin = `${snapshot.url.protocol}//${snapshot.url.host}`;
 
-    const recommendedIds = autoSelectModulesForContext(snapshot);
-    let activatedModules = null;
+  const [dnsPosture, securityTxt, robotsTxt] = await Promise.all([
+    (dnsBaseActive || dnsAdvActive || dnsResActive)
+      ? fetchPassiveDnsPosture(snapshot.url.hostname, dnsAdvActive, dnsResActive)
+      : Promise.resolve({ skipped: true, reason: 'Módulo DNS inativo' }),
+    secTxtActive
+      ? fetchSmallPassiveResource(new URL('/.well-known/security.txt', finalOrigin))
+      : Promise.resolve({ skipped: true, reason: 'Módulo security.txt inativo' }),
+    robotsActive
+      ? fetchSmallPassiveResource(new URL('/robots.txt', finalOrigin))
+      : Promise.resolve({ skipped: true, reason: 'Módulo robots.txt inativo' })
+  ]);
 
-    if (effectiveMode === 'ai-automation') {
-      activatedModules = applyModuleSelection(recommendedIds);
+  snapshot.dnsPosture = dnsPosture;
+  snapshot.wellKnown = { securityTxt, robotsTxt };
+
+  const recommendedIds = autoSelectModulesForContext(snapshot);
+  let activatedModules = null;
+  if (effectiveMode === 'ai-automation' && !override_modules) {
+    activatedModules = applyModuleSelection(recommendedIds);
+  }
+
+  const execOut = runActiveModules(snapshot, activeCatalog);
+  const previousSameHost = inspectionHistory.find(h => h.host === snapshot.url.host) || null;
+
+  const record = {
+    task_id: `aegis-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+    timestamp: new Date().toISOString(),
+    target: snapshot.url.href,
+    requested_target: parsedUrl.href,
+    host: snapshot.url.host,
+    method: snapshot.method,
+    mode: effectiveMode,
+    status_code: snapshot.statusCode,
+    duration_ms: snapshot.durationMs,
+    content_type: snapshot.contentType,
+    redirect_chain: snapshot.redirectChain || [],
+    tls_info: snapshot.tlsInfo,
+    dns_posture: snapshot.dnsPosture,
+    well_known: {
+      security_txt_found: Boolean(securityTxt && securityTxt.found),
+      robots_txt_found: Boolean(robotsTxt && robotsTxt.found)
+    },
+    response_headers: snapshot.headers,
+    body_preview: snapshot.bodyPreview,
+    executed_modules_count: execOut.executed_count,
+    skipped_modules_count: execOut.skipped_count,
+    module_results: execOut.module_results,
+    recommended_modules: recommendedIds,
+    activated_modules: activatedModules,
+    owasp_score: execOut.owasp_score,
+    owasp_grade: execOut.owasp_grade,
+    findings_count: execOut.findings.length,
+    findings: execOut.findings,
+    hardening_snippets: execOut.hardening_snippets,
+    compliance_matrix: execOut.compliance_matrix,
+    status: 'completed'
+  };
+
+  record.delta = computeInspectionDelta(record, previousSameHost);
+
+  if (effectiveMode === 'ai-automation' && aiConfig.ai_type !== 'none') {
+    try {
+      const summaryPrompt = `Resuma em até 4 tópicos objetivos e defensivos (pt-BR) as melhorias prioritárias para esta inspeção passiva (Nota OWASP ${record.owasp_grade} / ${record.owasp_score}):\n${JSON.stringify({
+        target: record.target,
+        status_code: record.status_code,
+        modules_executed: record.module_results.map(m => `${m.module_id}:${m.status}`),
+        findings: record.findings.slice(0, 12)
+      })}`;
+      record.ai_summary = await callAI(summaryPrompt, aiConfig);
+    } catch (aiErr) {
+      record.ai_summary = `IA indisponível no momento (${aiErr.message}).`;
     }
+  }
 
-    const execOut = runActiveModules(snapshot, modulesConfig.installed);
-
-    const record = {
-      task_id: `aegis-${Date.now()}`,
-      timestamp: new Date().toISOString(),
-      target: snapshot.url.href,
-      host: snapshot.url.host,
-      method: snapshot.method,
-      mode: effectiveMode,
-      status_code: snapshot.statusCode,
-      duration_ms: snapshot.durationMs,
-      content_type: snapshot.contentType,
-      tls_info: snapshot.tlsInfo,
-      dns_posture: snapshot.dnsPosture,
-      response_headers: snapshot.headers,
-      body_preview: snapshot.bodyPreview,
-      executed_modules_count: execOut.executed_count,
-      skipped_modules_count: execOut.skipped_count,
-      module_results: execOut.module_results,
-      recommended_modules: recommendedIds,
-      activated_modules: activatedModules,
-      owasp_score: execOut.owasp_score,
-      owasp_grade: execOut.owasp_grade,
-      findings_count: execOut.findings.length,
-      findings: execOut.findings,
-      hardening_snippets: execOut.hardening_snippets,
-      status: 'completed'
-    };
-
-    if (effectiveMode === 'ai-automation' && aiConfig.ai_type === 'ollama') {
-      try {
-        const summaryPrompt = `Resuma em até 4 tópicos objetivos e defensivos (pt-BR) as melhorias prioritárias para esta inspeção passiva (Nota OWASP ${record.owasp_grade} / ${record.owasp_score}):\n${JSON.stringify({
-          target: record.target,
-          status_code: record.status_code,
-          modules_executed: record.module_results.map(m => `${m.module_id}:${m.status}`),
-          findings: record.findings.slice(0, 12)
-        })}`;
-        record.ai_summary = await callAI(summaryPrompt, aiConfig);
-      } catch (aiErr) {
-        record.ai_summary = `IA local indisponível no momento (${aiErr.message}).`;
-      }
-    }
-
+  if (record_in_session) {
     const historyModActive = modulesConfig.installed.some(m => m.id === 'http-history' && m.active);
     if (historyModActive || inspectionHistory.length === 0) {
       inspectionHistory.unshift(record);
       if (inspectionHistory.length > MAX_HISTORY) {
         inspectionHistory = inspectionHistory.slice(0, MAX_HISTORY);
+      }
+    }
+
+    const dnsSummaryParts = [];
+    if (dnsPosture && !dnsPosture.skipped) {
+      dnsSummaryParts.push(`CAA:${dnsPosture.caa.length ? 'OK' : '-'}`);
+      dnsSummaryParts.push(`SPF:${dnsPosture.spf ? 'OK' : '-'}`);
+      dnsSummaryParts.push(`DMARC:${dnsPosture.dmarc ? 'OK' : '-'}`);
+      if (dnsPosture.advancedChecked) {
+        dnsSummaryParts.push(`STS:${dnsPosture.mtaSts ? 'OK' : '-'}`);
       }
     }
 
@@ -1010,16 +1159,96 @@ app.post('/api/inspect/run', async (req, res) => {
       owasp_score: record.owasp_score,
       findings_count: record.findings_count,
       tls_protocol: snapshot.tlsInfo ? snapshot.tlsInfo.protocol : null,
-      dns_summary: dnsPosture && !dnsPosture.skipped
-        ? `CAA:${dnsPosture.caa.length ? 'OK' : '-'} SPF:${dnsPosture.spf ? 'OK' : '-'} DMARC:${dnsPosture.dmarc ? 'OK' : '-'}`
-        : null,
+      dns_summary: dnsSummaryParts.length ? dnsSummaryParts.join(' ') : null,
       last_seen: record.timestamp
     });
 
+    saveSessionStore();
+  }
+  return record;
+}
+
+const monitor = createMonitorEngine(WATCHLIST_PATH, (opts) => executeSingleInspection(opts));
+monitor.startScheduler();
+
+function formatInspectError(err, rawTarget) {
+  const parsed = normalizeTargetUrl(rawTarget);
+  let hint = '';
+  if (err && (err.code === 'ENOTFOUND' || err.code === 'EAI_AGAIN')) {
+    hint = ` — domínio "${parsed ? parsed.hostname : rawTarget}" não encontrado no DNS. Verifique se o endereço está digitado corretamente.`;
+  } else if (err && err.code === 'ECONNREFUSED') {
+    hint = ` — conexão recusada por ${parsed ? parsed.host : rawTarget}.`;
+  } else if (err && /CERT_|SELF_SIGNED|VERIFY_LEAF/i.test(String(err.code || ''))) {
+    hint = ' — falha na validação do certificado TLS do servidor alvo.';
+  }
+  return `Falha ao inspecionar alvo: ${err.message}${hint}`;
+}
+
+app.post('/api/inspect/run', async (req, res) => {
+  try {
+    const record = await executeSingleInspection(req.body || {});
     res.json({ success: true, ...record });
   } catch (err) {
-    res.status(502).json({ error: `Falha ao inspecionar alvo: ${err.message}` });
+    if (err && err.httpStatus === 400) {
+      return res.status(400).json({ error: err.message });
+    }
+    res.status(502).json({ error: formatInspectError(err, req.body && req.body.target) });
   }
+});
+
+// Auditoria Passiva em Lote (até 15 URLs sequenciais)
+app.post('/api/inspect/batch', async (req, res) => {
+  const { targets, mode, method, custom_headers } = req.body || {};
+  const rawList = Array.isArray(targets)
+    ? targets
+    : String(targets || '').split(/\r?\n|,/).map(s => s.trim());
+  const cleanTargets = [...new Set(rawList.map(s => String(s || '').trim()).filter(Boolean))].slice(0, MAX_BATCH_TARGETS);
+
+  if (cleanTargets.length === 0) {
+    return res.status(400).json({ error: 'Informe pelo menos uma URL alvo para a auditoria em lote.' });
+  }
+
+  const results = [];
+  let completed = 0;
+  let failed = 0;
+  let scoreSum = 0;
+
+  for (const target of cleanTargets) {
+    try {
+      const rec = await executeSingleInspection({ target, mode, method, custom_headers });
+      completed++;
+      scoreSum += Number(rec.owasp_score || 0);
+      results.push({
+        target: rec.target,
+        requested_target: target,
+        success: true,
+        status_code: rec.status_code,
+        duration_ms: rec.duration_ms,
+        owasp_grade: rec.owasp_grade,
+        owasp_score: rec.owasp_score,
+        findings_count: rec.findings_count,
+        executed_modules_count: rec.executed_modules_count,
+        record: rec
+      });
+    } catch (err) {
+      failed++;
+      results.push({
+        target,
+        requested_target: target,
+        success: false,
+        error: err.httpStatus === 400 ? err.message : formatInspectError(err, target)
+      });
+    }
+  }
+
+  res.json({
+    success: true,
+    total: cleanTargets.length,
+    completed,
+    failed,
+    average_score: completed ? Math.round(scoreSum / completed) : null,
+    results
+  });
 });
 
 app.get('/api/inspect/history', (req, res) => {
@@ -1029,6 +1258,7 @@ app.get('/api/inspect/history', (req, res) => {
 app.delete('/api/inspect/history', (req, res) => {
   inspectionHistory = [];
   hostInventory.clear();
+  saveSessionStore();
   res.json({ success: true });
 });
 
@@ -1036,7 +1266,92 @@ app.get('/api/inventory', (req, res) => {
   res.json({ hosts: [...hostInventory.values()] });
 });
 
-// Relatórios personalizáveis (PDF 1.4, HTML estilizado, Markdown e JSON)
+// CI/CD Quality Gate Endpoint (retorna 200 se aprovado, 422 se violar políticas)
+app.post('/api/ci/gate', async (req, res) => {
+  const { target, method, preset, min_score = 80, max_high = 0, max_medium = null, custom_headers } = req.body || {};
+  let overrideMods = null;
+  if (preset && (preset === 'all-on' || PRESET_SETS[preset])) {
+    overrideMods = modulesConfig.installed.map(m => ({
+      ...m,
+      active: preset === 'all-on' ? true : PRESET_SETS[preset].has(m.id)
+    }));
+  }
+  try {
+    const rec = await executeSingleInspection({
+      target,
+      method: method || 'GET',
+      mode: 'manual',
+      custom_headers,
+      override_modules: overrideMods,
+      record_in_session: true
+    });
+    const highCount = rec.findings.filter(f => f.severity === 'high').length;
+    const medCount = rec.findings.filter(f => f.severity === 'medium').length;
+    const violations = [];
+    if (rec.owasp_score < Number(min_score)) {
+      violations.push(`Nota OWASP ${rec.owasp_score}/100 abaixo do mínimo exigido (${min_score})`);
+    }
+    if (max_high !== null && max_high !== undefined && highCount > Number(max_high)) {
+      violations.push(`Achados HIGH (${highCount}) excedem o limite (${max_high})`);
+    }
+    if (max_medium !== null && max_medium !== undefined && medCount > Number(max_medium)) {
+      violations.push(`Achados MEDIUM (${medCount}) excedem o limite (${max_medium})`);
+    }
+    const passed = violations.length === 0;
+    return res.status(passed ? 200 : 422).json({
+      passed,
+      exit_code: passed ? 0 : 1,
+      target: rec.target,
+      owasp_grade: rec.owasp_grade,
+      owasp_score: rec.owasp_score,
+      severity_counts: {
+        high: highCount,
+        medium: medCount,
+        low: rec.findings.filter(f => f.severity === 'low').length,
+        info: rec.findings.filter(f => f.severity === 'info').length
+      },
+      violations,
+      compliance_matrix: rec.compliance_matrix,
+      task_id: rec.task_id
+    });
+  } catch (err) {
+    if (err && err.httpStatus === 400) return res.status(400).json({ error: err.message });
+    return res.status(502).json({ error: formatInspectError(err, target) });
+  }
+});
+
+// Monitoramento Contínuo Passivo (Watchlist + Alertas)
+app.get('/api/watchlist', (req, res) => {
+  res.json(monitor.list());
+});
+
+app.post('/api/watchlist', (req, res) => {
+  try {
+    const item = monitor.add(req.body || {});
+    res.status(201).json({ success: true, item });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+app.delete('/api/watchlist/alerts', (req, res) => {
+  monitor.clearAlerts();
+  res.json({ success: true });
+});
+
+app.delete('/api/watchlist/:id', (req, res) => {
+  const ok = monitor.remove(String(req.params.id || '').trim());
+  if (!ok) return res.status(404).json({ error: 'Alvo não encontrado na Watchlist.' });
+  res.json({ success: true });
+});
+
+app.post('/api/watchlist/run', async (req, res) => {
+  const singleId = req.body && req.body.id ? String(req.body.id).trim() : null;
+  const out = await monitor.runSweep(true, singleId);
+  res.json({ success: true, ...out, watchlist: monitor.list() });
+});
+
+// Relatórios personalizáveis (PDF 1.4, HTML estilizado, Markdown, SARIF 2.1.0, CSV e JSON)
 app.get('/api/report', (req, res) => {
   const format = String(req.query.format || 'pdf').toLowerCase();
   const titleText = String(req.query.title || `Relatório de Inspeção Passiva — ${APP_NAME}`).trim().slice(0, 120);
@@ -1062,15 +1377,25 @@ app.get('/api/report', (req, res) => {
     generatedAt: new Date().toISOString()
   };
 
+  const reportCtx = {
+    appName: APP_NAME,
+    currentMode,
+    aiConfig,
+    modulesInstalled: modulesConfig.installed,
+    hosts: [...hostInventory.values()],
+    inspectionHistory
+  };
+
   if (format === 'json') {
     res.setHeader('Content-Type', 'application/json; charset=utf-8');
     res.setHeader('Content-Disposition', `attachment; filename="${safeBase}-${stamp}.json"`);
     return res.json({
       platform: APP_NAME,
       report: reportOpts,
+      summary: computeReportSummary(inspectionHistory, reportCtx.hosts, modulesConfig.installed, minSeverity),
       mode: currentMode,
       modules_active: includeModules ? modulesConfig.installed.filter(m => m.active) : undefined,
-      hosts: [...hostInventory.values()],
+      hosts: reportCtx.hosts,
       inspections: inspectionHistory.map(i => ({
         ...i,
         findings: filterFindingsBySeverity(i.findings, minSeverity),
@@ -1080,21 +1405,35 @@ app.get('/api/report', (req, res) => {
     });
   }
 
+  if (format === 'sarif') {
+    const sarif = buildSarifReport(reportOpts, reportCtx);
+    res.setHeader('Content-Type', 'application/sarif+json; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="${safeBase}-${stamp}.sarif"`);
+    return res.json(sarif);
+  }
+
+  if (format === 'csv') {
+    const csv = buildCsvReport(reportOpts, reportCtx);
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="${safeBase}-${stamp}.csv"`);
+    return res.send(csv);
+  }
+
   if (format === 'md' || format === 'markdown') {
-    const md = buildMarkdownReport(reportOpts);
+    const md = buildMarkdownReport(reportOpts, reportCtx);
     res.setHeader('Content-Type', 'text/markdown; charset=utf-8');
     res.setHeader('Content-Disposition', `attachment; filename="${safeBase}-${stamp}.md"`);
     return res.send(md);
   }
 
   if (format === 'html') {
-    const docHtml = buildHtmlReport(reportOpts);
+    const docHtml = buildHtmlReport(reportOpts, reportCtx);
     res.setHeader('Content-Type', 'text/html; charset=utf-8');
     res.setHeader('Content-Disposition', `attachment; filename="${safeBase}-${stamp}.html"`);
     return res.send(docHtml);
   }
 
-  const pdfBuffer = buildValidPdfBuffer(reportOpts);
+  const pdfBuffer = buildValidPdfBuffer(reportOpts, reportCtx);
   res.setHeader('Content-Type', 'application/pdf');
   res.setHeader('Content-Disposition', `attachment; filename="${safeBase}-${stamp}.pdf"`);
   return res.send(pdfBuffer);
